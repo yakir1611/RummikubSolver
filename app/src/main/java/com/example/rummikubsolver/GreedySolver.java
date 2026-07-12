@@ -2,8 +2,8 @@ package com.example.rummikubsolver;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-//Solver.java
-public class Solver {
+//GreedySolver.java
+public class GreedySolver {
 
     /**
      * Main entry point for the solver.

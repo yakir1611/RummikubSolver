@@ -7,7 +7,7 @@ import com.example.rummikubsolver.Tile;
  * BEFORE it is confirmed as accurate.
  *
  * Unlike {@link Tile} (which always represents a known, correct tile used by
- * the game logic / Solver), a DetectedTile may be incomplete or wrong:
+ * the game logic / solvers), a DetectedTile may be incomplete or wrong:
  * the CV model might be unsure of the number, the color, or whether the
  * tile is a joker. That uncertainty is exactly what the manual-correction
  * screen (RUM-5 in our board) needs to work with.
@@ -18,7 +18,7 @@ import com.example.rummikubsolver.Tile;
  *      (see needsManualReview()).
  *   3. User confirms or corrects each one (number/color/joker/box position).
  *   4. Once verified, each DetectedTile is converted to a clean Tile via
- *      toTile(), and from that point on the existing Board/Hand/Solver code
+ *      toTile(), and from that point on the existing Board/Hand/solver code
  *      works exactly as it already does today - it never needs to know
  *      DetectedTile exists.
  */
@@ -104,7 +104,7 @@ public class DetectedTile {
 
     /**
      * Converts this DetectedTile into a clean, logical Tile for use by the
-     * existing game model (Board / Hand / Solver / RummiSet).
+     * existing game model (Board / Hand / GreedySolver / OptimalSolver / RummiSet).
      *
      * @param tileId a unique id to assign to the resulting Tile (see Tile's constructors)
      * @throws IllegalStateException if the tile is not yet complete/verified enough to convert

@@ -138,7 +138,7 @@ public class RummiSet {
     }
 
 
-    // Helpers for the Solver
+    // Helpers for the GreedySolver
     public enum SetType {
         GROUP, RUN, INVALID
     }
