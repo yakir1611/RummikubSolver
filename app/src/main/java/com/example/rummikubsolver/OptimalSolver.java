@@ -1,56 +1,38 @@
 package com.example.rummikubsolver;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 
 /**
  * Exact solver for a single Rummikub turn.
- *
- * Finds the move that plays the maximum possible number of tiles from the hand, allowing
- * the existing board sets to be fully dismantled and rearranged, under the hard constraint
- * that every tile currently on the board ends up in some valid set (board tiles can never
- * return to the hand). The {@link GreedySolver} remains available as a fallback and is
- * also run first internally to seed the branch-and-bound lower bound.
- *
- * Algorithm: backtracking over a count-normalized pool (tiles of equal color/value are
- * interchangeable; the physical Tile objects are mapped back only when a solution is
- * recorded). Each step anchors on the lowest remaining tile and enumerates every valid
- * set in which that tile is the lowest real tile (runs walking upward from it, groups at
- * its value), plus a "leave it in hand" branch for optional copies. Board copies of a
- * tile are always consumed before hand copies, and a branch-and-bound cut discards any
- * state that cannot beat the best solution found so far.
- *
- * Call {@link #solve} from a background thread. A single instance is not thread-safe;
- * use one instance per concurrent search.
+ * * Finds the move that plays the maximum number of tiles from the hand. It allows
+ * complete dismantling and rearranging of the existing board, under the constraint
+ * that all original board tiles must remain in valid sets on the board.
+ * * Uses backtracking over a count-normalized pool (matching tiles by quantity, not object).
+ * It seeds the search with the GreedySolver as a lower bound, and utilizes branch-and-bound
+ * cuts to discard sub-optimal branches.
+ * * Must be called from a background thread. Not thread-safe.
  */
 public class OptimalSolver {
-
     /**
-     * Node budget for the exhaustive search. If exceeded, {@link #solve} stops and returns
-     * the best solution found so far, flagged via {@link Result#searchCompleted} = false.
-     * Tune this to trade worst-case latency against the guarantee of optimality.
+     * Max search budget. If exceeded, solve stops and returns the best move
+     * found so far, setting searchCompleted to false.
+     * Increase this value for guaranteed perfection, or decrease it to speed up response times.
      */
     public static final long DEFAULT_NODE_CAP = 2_000_000L;
 
-    /** Outcome of an optimal-move search. */
+    // Outcome of an optimal-move search.
     public static class Result {
-        /** The complete final board: every original board tile plus the played hand tiles. */
+        // The complete final board: every original board tile + the played hand tiles.
         public final List<RummiSet> newBoardSets;
-        /** The exact hand Tile objects that were played (empty if no tile can be played). */
+        // The exact hand Tile objects that were played (empty if no tile can be played).
         public final List<Tile> playedHandTiles;
-        /**
-         * False only if the board tiles themselves cannot form any valid arrangement
-         * (possible with mis-detected boards); newBoardSets then echoes the input board.
-         */
+        //True if the board tiles can form a valid arrangement; false if mis-detected or impossible.
         public final boolean feasible;
-        /**
-         * True: the search ran to completion, so the move is provably optimal.
-         * False: the node cap was reached, so this is only the best move found.
-         */
+        // True if the search finished completely (provably optimal);
+        // false if it stopped because of the node budget.
         public final boolean searchCompleted;
-        /** Number of search nodes explored (diagnostics/tuning). */
+        // Number of search nodes explored (diagnostics/tuning).
         public final long nodesExplored;
 
         Result(List<RummiSet> newBoardSets, List<Tile> playedHandTiles,
@@ -62,41 +44,39 @@ public class OptimalSolver {
             this.nodesExplored = nodesExplored;
         }
 
-        /** Convenience for the UI: "Optimal move" vs "Best move found (search capped)". */
+        // Convenience for the UI: "Optimal move" vs "Best move found (search capped)".
         public boolean isProvablyOptimal() {
             return feasible && searchCompleted;
         }
     }
 
+    // Allows setting a custom search budget (node cap) to balance accuracy and speed.
     private final long nodeCap;
-
+    public OptimalSolver(long nodeCap) {
+        this.nodeCap = nodeCap;
+    }
+    // Creates a solver using the default search budget of 2,000,000 nodes.
     public OptimalSolver() {
         this(DEFAULT_NODE_CAP);
     }
 
-    public OptimalSolver(long nodeCap) {
-        this.nodeCap = nodeCap;
-    }
-
     // ---- Search state (reset per solve() call) ----
-
     private int[][] total;          // [color][value 1..13] copies still in the pool
-    private int[][] mand;           // board copies still unconsumed (must reach 0)
+    private int[][] boardTiles;           // board copies still unconsumed (must reach 0)
     private int totalJokers;
-    private int mandJokers;
+    private int boardJokers;
     private int handUsed;           // hand tiles consumed into sets so far
     private int optionalRemaining;  // hand tiles neither consumed nor skipped yet
     private long nodes;
-    private boolean capped;
-
-    private int bestHandUsed;
-    private List<RummiSet> bestSets;
-    private List<Tile> bestPlayed;
-    private Deque<Candidate> chosen;
+    private boolean capped;        // True if the search hit the node budget.
+    private int bestHandUsed;      // Max number of tiles played from hand that found so far
+    private List<RummiSet> bestSets; // Holds the winning board configuration (the layout of sets).
+    private List<Tile> bestPlayed; // List of tiles played from the hand in the best solution.
+    private List<PotentialSet> currentPath; // Tracks the stack of sets chosen in the current backtracking branch.
 
     // Physical tiles per cell, board tiles first, for reconstructing a recorded solution.
     private List<Tile>[][] cellTiles;
-    private List<Tile> jokerTiles;
+    private List<Tile> jokerTiles;   // Stores all physical jokers (board & hands)
     private int[][] boardCount;     // initial board copies per cell
     private int boardJokerCount;
 
@@ -115,7 +95,7 @@ public class OptimalSolver {
     @SuppressWarnings("unchecked")
     private void initState(Board board, Hand hand) {
         total = new int[4][14];
-        mand = new int[4][14];
+        boardTiles = new int[4][14];
         boardCount = new int[4][14];
         cellTiles = new List[4][14];
         for (int c = 0; c < 4; c++) {
@@ -125,7 +105,7 @@ public class OptimalSolver {
         }
         jokerTiles = new ArrayList<>();
         totalJokers = 0;
-        mandJokers = 0;
+        boardJokers = 0;
         boardJokerCount = 0;
 
         for (RummiSet s : board.getSets()) {
@@ -144,7 +124,7 @@ public class OptimalSolver {
         bestHandUsed = -1;
         bestSets = null;
         bestPlayed = null;
-        chosen = new ArrayDeque<>();
+        currentPath = new ArrayList<>();
     }
 
     private void addToPool(Tile t, boolean fromBoard) {
@@ -152,7 +132,7 @@ public class OptimalSolver {
             jokerTiles.add(t);
             totalJokers++;
             if (fromBoard) {
-                mandJokers++;
+                boardJokers++;
                 boardJokerCount++;
             }
             return;
@@ -165,7 +145,7 @@ public class OptimalSolver {
         cellTiles[c][v].add(t);
         total[c][v]++;
         if (fromBoard) {
-            mand[c][v]++;
+            boardTiles[c][v]++;
             boardCount[c][v]++;
         }
     }
@@ -214,7 +194,7 @@ public class OptimalSolver {
         int cell = findAnchor();
         if (cell < 0) {
             // All real tiles resolved; a board joker left over means this branch is illegal.
-            if (mandJokers == 0 && handUsed > bestHandUsed) {
+            if (boardJokers == 0 && handUsed > bestHandUsed) {
                 record();
             }
             return;
@@ -224,15 +204,15 @@ public class OptimalSolver {
         int v = cell >> 2;
         long minKey = (cell == prevCell) ? prevKey : Long.MIN_VALUE;
 
-        List<Candidate> cands = generateCandidates(c, v);
-        for (Candidate cd : cands) {
+        List<PotentialSet> cands = generatePotentialSets(c, v);
+        for (PotentialSet cd : cands) {
             if (cd.key < minKey) {
                 continue;
             }
             int boardBits = apply(cd);
-            chosen.addLast(cd);
+            currentPath.add(cd);
             search(cell, cd.key);
-            chosen.removeLast();
+            currentPath.remove(currentPath.size() - 1);
             undo(cd, boardBits);
             if (capped) {
                 return;
@@ -241,7 +221,7 @@ public class OptimalSolver {
 
         // Skip branch: leave the remaining copies of this tile in hand. Only legal once all
         // board copies are consumed, which also dedupes "cover then skip" vs "skip then cover".
-        if (mand[c][v] == 0) {
+        if (boardTiles[c][v] == 0) {
             int k = total[c][v];
             total[c][v] = 0;
             optionalRemaining -= k;
@@ -263,14 +243,14 @@ public class OptimalSolver {
         return -1;
     }
 
-    // ---- Candidate enumeration ----
+    // ---- PotentialSet enumeration ----
 
     /**
      * A set shape anchored at one cell. Runs are stored as a multiset: the real values
      * used (realMask), the top occupied value (runEnd) and jokers below the anchor
      * (bottomJokers); the concrete joker positions are resolved at reconstruction.
      */
-    private static final class Candidate {
+    private static final class PotentialSet {
         final boolean isRun;
         final int color;        // run color (groups use colorMask instead)
         final int value;        // run anchor value / group value
@@ -282,7 +262,7 @@ public class OptimalSolver {
         final long key;         // canonical shape key (unique per shape at an anchor)
         final int handCost;     // hand tiles this set consumes right now (ordering only)
 
-        Candidate(boolean isRun, int color, int value, int realMask, int runEnd,
+        PotentialSet(boolean isRun, int color, int value, int realMask, int runEnd,
                   int bottomJokers, int colorMask, int jokers, long key, int handCost) {
             this.isRun = isRun;
             this.color = color;
@@ -297,8 +277,8 @@ public class OptimalSolver {
         }
     }
 
-    private List<Candidate> generateCandidates(int c, int v) {
-        List<Candidate> out = new ArrayList<>();
+    private List<PotentialSet> generatePotentialSets(int c, int v) {
+        List<PotentialSet> out = new ArrayList<>();
         walkRun(c, v, v + 1, 1 << v, 0, 1, out);
         genGroups(c, v, out);
         // Try sets that play more hand tiles first, so good solutions (and thus tight
@@ -316,14 +296,14 @@ public class OptimalSolver {
      * joker below or above yields the same multiset, so allowing both would duplicate.
      */
     private void walkRun(int c, int anchor, int w, int realMask, int jokersUsed, int len,
-                         List<Candidate> out) {
+                         List<PotentialSet> out) {
         if (len >= 3) {
-            out.add(runCandidate(c, anchor, realMask, w - 1, 0, jokersUsed));
+            out.add(runPotentialSet(c, anchor, realMask, w - 1, 0, jokersUsed));
         }
         if (w > 13) {
             for (int j = 1; jokersUsed + j <= totalJokers && anchor - j >= 1; j++) {
                 if (len + j >= 3) {
-                    out.add(runCandidate(c, anchor, realMask, 13, j, jokersUsed + j));
+                    out.add(runPotentialSet(c, anchor, realMask, 13, j, jokersUsed + j));
                 }
             }
             return;
@@ -336,21 +316,21 @@ public class OptimalSolver {
         }
     }
 
-    private Candidate runCandidate(int c, int anchor, int realMask, int runEnd,
+    private PotentialSet runPotentialSet(int c, int anchor, int realMask, int runEnd,
                                    int bottomJokers, int jokers) {
-        int handCost = Math.max(0, jokers - mandJokers);
+        int handCost = Math.max(0, jokers - boardJokers);
         for (int w = anchor; w <= runEnd; w++) {
-            if ((realMask >> w & 1) != 0 && mand[c][w] == 0) {
+            if ((realMask >> w & 1) != 0 && boardTiles[c][w] == 0) {
                 handCost++;
             }
         }
         long key = ((long) realMask << 6) | (runEnd << 2) | bottomJokers;
-        return new Candidate(true, c, anchor, realMask, runEnd, bottomJokers, 0,
+        return new PotentialSet(true, c, anchor, realMask, runEnd, bottomJokers, 0,
                 jokers, key, handCost);
     }
 
     /** Enumerates all groups at value v that include the anchor color c. */
-    private void genGroups(int c, int v, List<Candidate> out) {
+    private void genGroups(int c, int v, List<PotentialSet> out) {
         for (int mask = 0; mask < 16; mask++) {
             if ((mask & (1 << c)) == 0) {
                 continue;
@@ -369,14 +349,14 @@ public class OptimalSolver {
                 if (size + j < 3) {
                     continue;
                 }
-                int handCost = Math.max(0, j - mandJokers);
+                int handCost = Math.max(0, j - boardJokers);
                 for (int c2 = 0; c2 < 4; c2++) {
-                    if ((mask & (1 << c2)) != 0 && mand[c2][v] == 0) {
+                    if ((mask & (1 << c2)) != 0 && boardTiles[c2][v] == 0) {
                         handCost++;
                     }
                 }
                 long key = (1L << 40) | ((long) mask << 2) | j;
-                out.add(new Candidate(false, c, v, 0, 0, 0, mask, j, key, handCost));
+                out.add(new PotentialSet(false, c, v, 0, 0, 0, mask, j, key, handCost));
             }
         }
     }
@@ -385,7 +365,7 @@ public class OptimalSolver {
 
     /** Consumes the candidate's tiles (board copies first). Returns a bitmask recording,
      *  per consumption in iteration order, whether a board copy was taken (for undo). */
-    private int apply(Candidate cd) {
+    private int apply(PotentialSet cd) {
         int bits = 0;
         int i = 0;
         if (cd.isRun) {
@@ -416,7 +396,7 @@ public class OptimalSolver {
         return bits;
     }
 
-    private void undo(Candidate cd, int bits) {
+    private void undo(PotentialSet cd, int bits) {
         int i = 0;
         if (cd.isRun) {
             for (int w = cd.value; w <= cd.runEnd; w++) {
@@ -434,7 +414,7 @@ public class OptimalSolver {
         for (int k = 0; k < cd.jokers; k++) {
             totalJokers++;
             if ((bits >> i++ & 1) != 0) {
-                mandJokers++;
+                boardJokers++;
             } else {
                 handUsed--;
                 optionalRemaining++;
@@ -445,8 +425,8 @@ public class OptimalSolver {
     /** @return true if a board copy was consumed, false if a hand copy. */
     private boolean consumeCell(int c, int v) {
         total[c][v]--;
-        if (mand[c][v] > 0) {
-            mand[c][v]--;
+        if (boardTiles[c][v] > 0) {
+            boardTiles[c][v]--;
             return true;
         }
         handUsed++;
@@ -456,8 +436,8 @@ public class OptimalSolver {
 
     private boolean consumeJoker() {
         totalJokers--;
-        if (mandJokers > 0) {
-            mandJokers--;
+        if (boardJokers > 0) {
+            boardJokers--;
             return true;
         }
         handUsed++;
@@ -468,7 +448,7 @@ public class OptimalSolver {
     private void restoreCell(int c, int v, boolean wasBoard) {
         total[c][v]++;
         if (wasBoard) {
-            mand[c][v]++;
+            boardTiles[c][v]++;
         } else {
             handUsed--;
             optionalRemaining++;
@@ -477,7 +457,7 @@ public class OptimalSolver {
 
     // ---- Solution reconstruction ----
 
-    /** Turns the current stack of chosen candidates into concrete sets and played tiles. */
+    /** Turns the current path (stack of chosen sets) into concrete sets and played tiles. */
     private void record() {
         bestHandUsed = handUsed;
         int[][] cursor = new int[4][14];
@@ -485,7 +465,7 @@ public class OptimalSolver {
         List<RummiSet> sets = new ArrayList<>();
         List<Tile> played = new ArrayList<>();
 
-        for (Candidate cd : chosen) {
+        for (PotentialSet cd : currentPath) {
             List<Tile> ts = new ArrayList<>();
             if (cd.isRun) {
                 for (int w = cd.value - cd.bottomJokers; w <= cd.runEnd; w++) {

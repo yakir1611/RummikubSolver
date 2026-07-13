@@ -2,9 +2,8 @@ package com.example.rummikubsolver;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-//GreedySolver.java
-public class GreedySolver {
 
+public class GreedySolver {
     /**
      * Main entry point for the solver.
      * Tries to make a move in the following priority order:
@@ -14,22 +13,18 @@ public class GreedySolver {
      */
     public boolean makeMove(Board board, Hand hand) {
         boolean madeProgress = false;
-
         // Step 1: Try to play complete sets from the hand
         while (playNewSetFromHand(board, hand)) {
             madeProgress = true;
         }
-
         // Step 2: Try to steal a tile from the board to complete a pair
         while (playSmartPairTheft(board, hand)) {
             madeProgress = true;
         }
-
         // Step 3: Try to add single tiles to existing sets
         while (addSingleTileToExistingSet(board, hand)) {
             madeProgress = true;
         }
-
         return madeProgress;
     }
 
@@ -38,7 +33,7 @@ public class GreedySolver {
     // =================================================================
 
     /**
-     * Orchestrates Step 1: Checks for Runs first, then Groups.
+     * Step 1: Checks for Runs first, then Groups.
      */
     private boolean playNewSetFromHand(Board board, Hand hand) {
         // Priority 1: Runs (e.g., 3, 4, 5 of same color)
@@ -99,14 +94,12 @@ public class GreedySolver {
      */
     private boolean findAndPlayGroup(Board board, Hand hand) {
         List<Tile> tiles = new ArrayList<>(hand.getTiles());
-
         // Sort by Value only to group same numbers together
         tiles.sort(Comparator.comparingInt(Tile::getValue));
 
         for (int i = 0; i < tiles.size(); i++) {
             Tile t1 = tiles.get(i);
             if (t1.isJoker()) continue;
-
             List<Tile> potentialGroup = new ArrayList<>();
             potentialGroup.add(t1);
 
@@ -140,9 +133,7 @@ public class GreedySolver {
     private boolean playSmartPairTheft(Board board, Hand hand) {
         // Create a copy to allow modification of the board during iteration
         List<RummiSet> setsCopy = new ArrayList<>(board.getSets());
-
         for (RummiSet boardSet : setsCopy) {
-
             // CASE A: GROUP (Any tile can be stolen if the remaining set is valid)
             if (boardSet.getSetType() == RummiSet.SetType.GROUP) {
                 if (boardSet.getSize() > 3) {
@@ -207,8 +198,7 @@ public class GreedySolver {
                 });
 
                 RummiSet newSet = new RummiSet(potentialNewSetTiles);
-                if (newSet.isValid()) {
-                    // EXECUTION
+                if (newSet.isValid()) { // EXECUTION
                     boolean isGroup = (sourceSet.getSetType() == RummiSet.SetType.GROUP);
                     boolean isEdge = (tileIndex == 0 || tileIndex == sourceSet.getSize() - 1);
 
