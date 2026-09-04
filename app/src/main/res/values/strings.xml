@@ -1,3 +1,98 @@
 <resources>
     <string name="app_name">Rummikub Solver</string>
+
+    <!-- login -->
+    <string name="login_title">התחברות</string>
+    <string name="login_subtitle">התחבר כדי לשמור את היסטוריית המשחקים שלך</string>
+    <string name="login_username">שם משתמש</string>
+    <string name="login_password">סיסמה</string>
+    <string name="login_button">התחברות</string>
+    <string name="login_register">משתמש חדש? הרשמה</string>
+    <string name="login_error_empty">יש למלא שם משתמש וסיסמה</string>
+    <string name="login_error_username_format">שם המשתמש יכול להכיל רק אותיות באנגלית ומספרים</string>
+    <string name="login_error_password_format">הסיסמה חייבת להכיל לפחות 5 תווים, עם אותיות באנגלית ולפחות מספר אחד</string>
+
+    <!-- register -->
+    <string name="register_title">הרשמה</string>
+    <string name="register_subtitle">צור חשבון חדש כדי לשמור את היסטוריית המשחקים שלך</string>
+    <string name="register_button">הרשמה</string>
+    <string name="register_have_account">כבר יש לך חשבון? התחברות</string>
+
+    <!-- home -->
+    <string name="home_greeting">שלום, %1$s</string>
+    <string name="home_new_game">משחק חדש</string>
+    <string name="home_new_game_sub">צלם את הלוח ואת היד שלך</string>
+    <string name="home_history">היסטוריה</string>
+    <string name="home_history_sub">המהלכים שנשמרו</string>
+
+    <!-- capture -->
+    <string name="capture_title">צילום הלוח</string>
+    <string name="capture_step_board">שלב 1 מתוך 2: צלם את הלוח</string>
+    <string name="capture_step_hand">שלב 2 מתוך 2: צלם את היד שלך</string>
+    <string name="capture_hint_board">ודא שכל האבנים על השולחן נראות בבירור</string>
+    <string name="capture_hint_hand">פרוס את האבנים שלך בשורה אחת, בלי חפיפה</string>
+    <string name="capture_take_photo">צילום</string>
+    <string name="capture_from_gallery">בחירה מהגלריה</string>
+    <string name="capture_retake">צילום מחדש</string>
+    <string name="capture_next">המשך</string>
+    <string name="capture_analyzing">מנתח את התמונה…</string>
+    <string name="capture_analyze">ניתוח</string>
+    <string name="capture_error">שגיאה בניתוח: %1$s</string>
+    <string name="capture_permission_needed">נדרשת הרשאת מצלמה כדי להמשיך</string>
+    <string name="capture_retry">נסה שוב</string>
+    <string name="cd_tile_photo">תמונת אבן שזוהתה</string>
+
+    <!-- review -->
+    <string name="review_title">בדיקת המצב</string>
+    <string name="review_board_section">הלוח</string>
+    <string name="review_hand_section">היד שלי</string>
+    <string name="review_edit_hint">הקש על אבן כדי לתקן אותה</string>
+    <string name="review_set_label">סט %1$d</string>
+    <string name="review_summary">%1$d סטים בלוח, %2$d אבנים ביד</string>
+    <string name="review_all_good">הכל תקין</string>
+    <string name="review_needs_fix">יש לתקן לפני שממשיכים</string>
+    <string name="review_unassigned">לא משויך לאף סט</string>
+    <string name="review_solve">מצא פתרון</string>
+    <string name="review_solve_blocked">יש לתקן את השגיאות לפני חיפוש פתרון</string>
+
+    <!-- tile editor dialog -->
+    <string name="editor_title">עריכת אבן</string>
+    <string name="editor_number">מספר</string>
+    <string name="editor_color">צבע</string>
+    <string name="editor_joker">ג\'וקר</string>
+    <string name="editor_set_label">סט</string>
+    <string name="editor_set_new">סט חדש</string>
+    <string name="editor_set_unassigned">לא משויך</string>
+    <string name="editor_add_tile">הוספת אבן</string>
+    <string name="editor_delete">מחיקה</string>
+    <string name="editor_cancel">ביטול</string>
+    <string name="editor_save">שמירה</string>
+
+    <!-- solution -->
+    <string name="solution_title">הפתרון המוצע</string>
+    <string name="solution_board_before">הלוח לפני</string>
+    <string name="solution_hand_before">היד לפני</string>
+    <string name="solution_board_after">הלוח אחרי</string>
+    <string name="solution_hand_remaining">היד שנותרה</string>
+    <string name="solution_computing">מחשב את הפתרון…</string>
+    <string name="solution_tiles_played">%1$d אבנים הונחו</string>
+    <string name="solution_remaining">%1$d אבנים נותרו ביד</string>
+    <string name="solution_none">לא נמצא מהלך אפשרי הפעם</string>
+    <string name="solution_new_turn">תור חדש</string>
+
+    <!-- history -->
+    <string name="history_title">היסטוריית משחקים</string>
+    <string name="history_empty">עדיין אין היסטוריה שמורה</string>
+    <string name="history_entry_sub">%1$d אבנים הונחו</string>
+    <string name="history_game_title">משחק %1$d</string>
+    <string name="cd_rename_entry">שינוי שם למהלך</string>
+    <string name="history_rename_title">שינוי שם</string>
+    <string name="history_rename_error">שגיאה בשינוי השם</string>
+
+    <!-- history detail -->
+    <string name="history_detail_photo_title">התמונה שצולמה</string>
+
+    <!-- warnings -->
+    <string name="warning_blocking_prefix">שגיאה: </string>
+    <string name="warning_info_prefix">לתשומת לבך: </string>
 </resources>

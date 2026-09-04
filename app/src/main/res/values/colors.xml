@@ -2,4 +2,35 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Rummi design system - referenced by every screen's layout, plus a
+         few directly from Java (SolutionActivity/ReviewActivity warning
+         colors). Was never actually defined until now - the app has never
+         compiled before this. -->
+
+    <!-- neutrals -->
+    <color name="bg_screen">#FBF8F2</color>
+    <color name="surface_card">#FFFFFF</color>
+    <color name="text_primary">#1C1B1A</color>
+    <color name="text_secondary">#6B665C</color>
+    <color name="divider">#E4DFD3</color>
+
+    <!-- brand -->
+    <color name="brand_primary">#1D6F5C</color>
+    <color name="brand_accent">#E8A33D</color>
+
+    <!-- tile colors - the four real Rummikub piece colors, plus the
+         "face" (the ivory background of a physical tile) -->
+    <color name="tile_face">#F5EFDD</color>
+    <color name="tile_black">#1A1A1A</color>
+    <color name="tile_blue">#1E5FA8</color>
+    <color name="tile_red">#C62828</color>
+    <color name="tile_yellow">#D69A00</color>
+
+    <!-- warnings (ReviewActivity: TOO_SMALL/INVALID_SET are blocking,
+         LOW_CONFIDENCE is informational; SolutionActivity/RummiSet
+         validity also reuse "ok") -->
+    <color name="warn_blocking">#D32F2F</color>
+    <color name="warn_info">#B8860B</color>
+    <color name="warn_ok">#2E7D32</color>
 </resources>

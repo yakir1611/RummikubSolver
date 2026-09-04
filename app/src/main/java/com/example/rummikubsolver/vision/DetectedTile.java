@@ -65,6 +65,12 @@ public class DetectedTile {
     public Integer getBoardSetIndex() { return boardSetIndex; }
     public boolean isUserVerified() { return userVerified; }
 
+    // Plain bookkeeping (which reconstructed Board set this tile currently
+    // belongs to) - unlike the correctXxx() methods above, this does not
+    // imply the user has verified the tile's identity, so it deliberately
+    // leaves userVerified untouched.
+    public void setBoardSetIndex(Integer boardSetIndex) { this.boardSetIndex = boardSetIndex; }
+
     // Manual correction
     public void correctNumber(int number) {
         this.number = number;

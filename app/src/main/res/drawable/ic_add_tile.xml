@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- tile silhouette, matching the app's real tile face -->
+    <path
+        android:fillColor="@color/white"
+        android:pathData="M6.5,2 L17.5,2 A2.5,2.5 0 0 1 20,4.5 L20,19.5 A2.5,2.5 0 0 1 17.5,22 L6.5,22 A2.5,2.5 0 0 1 4,19.5 L4,4.5 A2.5,2.5 0 0 1 6.5,2 Z" />
+
+    <!-- plus, in the brand green so it reads against the white tile -->
+    <path
+        android:fillColor="@color/brand_primary"
+        android:pathData="M10.8,8 L13.2,8 L13.2,10.8 L16,10.8 L16,13.2 L13.2,13.2 L13.2,16 L10.8,16 L10.8,13.2 L8,13.2 L8,10.8 L10.8,10.8 Z" />
+</vector>
