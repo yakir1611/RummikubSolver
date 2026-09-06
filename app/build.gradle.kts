@@ -1,27 +1,17 @@
 import java.io.File
 import java.io.ByteArrayOutputStream
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
 }
 
-val localProperties = Properties().apply {
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use { load(it) }
-    }
-}
-// 10.0.2.2 is the Android emulator's alias for "localhost of the machine
-// running the emulator" - so this default reaches a server started with
-// `npm run dev` on the same computer as Android Studio, no config needed.
-// A real device or a deployed server needs a real address here, set in
-// local.properties (which is gitignored).
-val appServerUrl = localProperties.getProperty("APP_SERVER_URL") ?: "http://10.0.2.2:3000/"
-// same emulator-alias convention, pointing at inference-server/ (Python +
-// Ultralytics + FastAPI) instead of Roboflow's paid serverless API.
-val detectionServerUrl = localProperties.getProperty("DETECTION_SERVER_URL")
-    ?: "http://10.0.2.2:8001/detect"
+// Not secrets, and identical for every developer testing via USB + adb
+// reverse (see the adbReverse task below) - so these are committed literals
+// rather than local.properties entries. Only sdk.dir stays in
+// local.properties: that one is genuinely machine-specific and is filled in
+// automatically by Android Studio, not something a developer edits by hand.
+val appServerUrl = "http://localhost:3000/"
+val detectionServerUrl = "http://127.0.0.1:8001/detect"
 
 android {
     namespace = "com.example.rummikubsolver"
