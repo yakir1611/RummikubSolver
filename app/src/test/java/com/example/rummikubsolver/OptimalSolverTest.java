@@ -232,4 +232,20 @@ public class OptimalSolverTest {
         // With a 1-node budget the search cannot beat the greedy seed (0 tiles).
         assertEquals(0, r.playedHandTiles.size());
     }
+
+    // ---- Scenario 8: hand joker doesn't crash the solver (regression for findAndPlayRun NPE) ----
+
+    @Test
+    public void handWithJokerDoesNotCrash() {
+        // גוקר ביד עם 2 אריחים אמיתיים שהיו קורסים ב-Greedy (NPE על מיון לפי צבע, כי
+        // לגוקר אין צבע). Greedy עכשיו פשוט מתעלם מהגוקר, אבל החיפוש העצמאי של
+        // OptimalSolver לא תלוי ב-Greedy ובונה בעצמו רצף עם הגוקר.
+        Board b = board();
+        Hand h = hand(t(10, RED), t(11, RED), joker());
+
+        OptimalSolver.Result r = solveAndCheck(b, h);
+
+        assertEquals(3, r.playedHandTiles.size());
+        assertTrue(r.isProvablyOptimal());
+    }
 }

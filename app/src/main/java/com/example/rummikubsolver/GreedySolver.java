@@ -49,7 +49,12 @@ public class GreedySolver {
      * Scans the hand to find and play valid Run sets (Same color, consecutive values).
      */
     private boolean findAndPlayRun(Board board, Hand hand) {
-        List<Tile> tiles = new ArrayList<>(hand.getTiles());
+        // לגוקר אין צבע אמיתי (getColor() מחזיר null), אז המיון לפי צבע למטה קורס עליו.
+        // מוציאים אותו החוצה כבר כאן - בניית רצף עם גוקר זה טיקט נפרד, כאן רק לא קורסים.
+        List<Tile> tiles = new ArrayList<>();
+        for (Tile t : hand.getTiles()) {
+            if (!t.isJoker()) tiles.add(t);
+        }
 
         // Sort first by Color, then by Value to easily find runs
         tiles.sort((t1, t2) -> {
@@ -60,7 +65,6 @@ public class GreedySolver {
 
         for (int i = 0; i < tiles.size(); i++) {
             Tile startTile = tiles.get(i);
-            if (startTile.isJoker()) continue;
 
             List<Tile> potentialRun = new ArrayList<>();
             potentialRun.add(startTile);
