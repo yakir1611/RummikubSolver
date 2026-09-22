@@ -28,9 +28,7 @@ public class GreedySolver {
         return madeProgress;
     }
 
-    // =================================================================
-    // Step 1: Play Full Sets from Hand
-    // =================================================================
+    // Step 1: play full sets from hand
 
     /**
      * Step 1: Checks for Runs first, then Groups.
@@ -49,8 +47,8 @@ public class GreedySolver {
      * Scans the hand to find and play valid Run sets (Same color, consecutive values).
      */
     private boolean findAndPlayRun(Board board, Hand hand) {
-        // לגוקר אין צבע אמיתי (getColor() מחזיר null), אז המיון לפי צבע למטה קורס עליו.
-        // מוציאים אותו החוצה כבר כאן - בניית רצף עם גוקר זה טיקט נפרד, כאן רק לא קורסים.
+        // Joker has no real color (getColor() returns null), so the color sort below crashes on it.
+        // We filter it out here first - building a run with a joker is a separate ticket, this just avoids the crash.
         List<Tile> tiles = new ArrayList<>();
         for (Tile t : hand.getTiles()) {
             if (!t.isJoker()) tiles.add(t);
@@ -126,9 +124,7 @@ public class GreedySolver {
         return false;
     }
 
-    // =================================================================
-    // Step 2: Smart Pair Theft (Handles Groups & Runs differently)
-    // =================================================================
+    // Step 2: smart pair theft (groups and runs need different handling)
 
     /**
      * Iterates over all board sets to find a tile that can be stolen to complete a pair in hand.
@@ -237,9 +233,7 @@ public class GreedySolver {
         return false;
     }
 
-    // =================================================================
-    // Step 3: Add Single Tiles
-    // =================================================================
+    // Step 3: add single tiles
 
     /**
      * Scans the hand for single tiles that can be appended to existing sets on the board.
@@ -260,35 +254,28 @@ public class GreedySolver {
                 }
 
                 // Adding to a Run
-                if (set.getSetType() == RummiSet.SetType.RUN) {
-                    Tile.Color runColor = set.getRunColor();
-                    if (runColor != null && tile.getColor() == runColor) {
-                        // Check if it fits at the end
-                        if (tile.getValue() == set.getRunNextValue()) {
-                            set.addTile(tile);
-                            hand.removeTile(tile);
-                            return true;
-                        }
-                        // Check if it fits at the start
-                        if (tile.getValue() == set.getRunPrecedingValue()) {
-                            set.addTile(0, tile);
-                            hand.removeTile(tile);
-                            return true;
-                        }
+                if (set.getSetType() == RummiSet.SetType.RUN && tileMatchesPossibleAddition(set, tile)) {
+                    // Figure out which side it goes on by comparing to the real tiles already there
+                    int lowestValue = Integer.MAX_VALUE;
+                    for (Tile t : set.getTiles()) {
+                        if (!t.isJoker()) lowestValue = Math.min(lowestValue, t.getValue());
                     }
+                    if (tile.getValue() < lowestValue) {
+                        set.addTile(0, tile);
+                    } else {
+                        set.addTile(tile);
+                    }
+                    hand.removeTile(tile);
+                    return true;
                 }
             }
         }
         return false;
     }
 
-    // =================================================================
-    // Helper Functions
-    // =================================================================
+    // helper functions
 
-    /**
-     * Helper: Adds a new set to the board and removes the used tiles from the hand.
-     */
+    // adds a new set to the board and removes the used tiles from the hand
     private void placeNewSet(Board board, Hand hand, RummiSet newSet, List<Tile> tilesToRemove) {
         board.addSet(newSet);
         for (Tile t : tilesToRemove) {
@@ -296,9 +283,7 @@ public class GreedySolver {
         }
     }
 
-    /**
-     * Helper: Checks if a specific color exists in a list of tiles (used for Groups).
-     */
+    // checks if a specific color exists in a list of tiles (used for Groups)
     private boolean hasColor(List<Tile> list, Tile.Color color) {
         for (Tile t : list) {
             if (t.getColor() == color) return true;
@@ -306,10 +291,17 @@ public class GreedySolver {
         return false;
     }
 
-    /**
-     * Optimization: Quickly checks if two tiles have any potential to form a set together.
-     * Prevents creating unnecessary objects for obviously invalid pairs.
-     */
+    // checks if this tile's value+color shows up anywhere in the run's possible additions
+    private boolean tileMatchesPossibleAddition(RummiSet set, Tile tile) {
+        for (RummiSet.PossibleAddition addition : set.getPossibleRunAdditions()) {
+            if (addition.getValue() == tile.getValue() && addition.getColor() == tile.getColor()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // quick check if two tiles could even form a set together, so we skip obviously invalid pairs
     private boolean isPotentiallyValidPair(Tile t1, Tile t2) {
         // Potential Group (Same value, different color)
         if (t1.getValue() == t2.getValue() && t1.getColor() != t2.getColor()) return true;

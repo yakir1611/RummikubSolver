@@ -5,13 +5,16 @@ import java.util.List;
 
 /**
  * Exact solver for a single Rummikub turn.
- * * Finds the move that plays the maximum number of tiles from the hand. It allows
+ *
+ * Finds the move that plays the maximum number of tiles from the hand. It allows
  * complete dismantling and rearranging of the existing board, under the constraint
  * that all original board tiles must remain in valid sets on the board.
- * * Uses backtracking over a count-normalized pool (matching tiles by quantity, not object).
- * It seeds the search with the GreedySolver as a lower bound, and utilizes branch-and-bound
+ *
+ * Uses backtracking over a count-normalized pool (matching tiles by quantity, not object).
+ * It seeds the search with the GreedySolver as a lower bound, and uses branch-and-bound
  * cuts to discard sub-optimal branches.
- * * Must be called from a background thread. Not thread-safe.
+ *
+ * Must be called from a background thread. Not thread-safe.
  */
 public class OptimalSolver {
     /**
@@ -292,8 +295,8 @@ public class OptimalSolver {
     /**
      * Enumerates all runs anchored at (c, anchor): walk upward choosing a real tile or a
      * joker for each next value, emitting a candidate at every legal stop. Jokers below
-     * the anchor are only considered once the walk is blocked at 13 — placing a spare
-     * joker below or above yields the same multiset, so allowing both would duplicate.
+     * the anchor are only considered once the walk is blocked at 13, since placing a spare
+     * joker below or above yields the same multiset, and allowing both would duplicate it.
      */
     private void walkRun(int c, int anchor, int w, int realMask, int jokersUsed, int len,
                          List<PotentialSet> out) {

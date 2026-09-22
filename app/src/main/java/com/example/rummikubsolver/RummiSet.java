@@ -2,6 +2,7 @@ package com.example.rummikubsolver;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 public class RummiSet {
     private final List<Tile> tiles;
@@ -134,6 +135,20 @@ public class RummiSet {
                 return false;
             }
         }
+
+        // Leftover jokers didn't fill an internal gap - they can still be
+        // valid if there's room to extend the run at either end (e.g.
+        // [5,6,7]+Joker can become [4,5,6,7] or [5,6,7,8]), but not if the
+        // run is already 1..13 with nowhere left to put them.
+        if (jokerCount > 0) {
+            int lowestValue = numbersOnly.get(0).getValue();
+            int highestValue = numbersOnly.get(numbersOnly.size() - 1).getValue();
+            int spaceBelow = lowestValue - 1;
+            int spaceAbove = 13 - highestValue;
+            if (jokerCount > spaceBelow + spaceAbove) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -172,61 +187,103 @@ public class RummiSet {
         return missing;
     }
 
-    // For Runs: returns the next logical number needed to extend the run
-    // Example: [3, 4, Joker] -> The logical sequence is 3,4,5 -> so it returns 6.
-    public int getRunNextValue() {
-        if (getSetType() != SetType.RUN) return -1;
-        List<Tile> sorted = new ArrayList<>(tiles);
-        sorted.sort(Comparator.comparingInt(Tile::getValue));
+    // One tile (value + color) that could legally be tacked onto a Run, at either end.
+    public static class PossibleAddition {
+        private final int value;
+        private final Tile.Color color;
 
-        int lowestReal = -1;
-        int jokersBefore = 0; // Count jokers that sorted to the start (value 0)
-
-        for (Tile t : sorted) {
-            if (t.isJoker()) {
-                jokersBefore++;
-            } else {
-                lowestReal = t.getValue();
-                break; // Found the first real number
-            }
+        public PossibleAddition(int value, Tile.Color color) {
+            this.value = value;
+            this.color = color;
         }
-        // Calculate where the run logically starts and ends
-        int logicalStart = lowestReal - jokersBefore;
-        int logicalEnd = logicalStart + tiles.size() - 1;
 
-        if (logicalEnd >= 13) return -1; // Cannot extend beyond 13
-        return logicalEnd + 1;
+        public int getValue() { return value; }
+        public Tile.Color getColor() { return color; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof PossibleAddition)) return false;
+            PossibleAddition that = (PossibleAddition) o;
+            return value == that.value && color == that.color;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value, color);
+        }
+
+        @Override
+        public String toString() {
+            return value + " " + color;
+        }
     }
 
-    // Returns the number needed at the START of the run
-    // Example: [4, 5, 6] -> logicalStart is 4 -> returns 3.
-    public int getRunPrecedingValue() {
-        if (getSetType() != SetType.RUN) return -1;
+    // For Runs: every tile that could legally be added at either end.
+    // A free joker (one not stuck plugging an internal gap) can end up on
+    // either side, and each possible split gives a different pair of values.
+    // So just loop over every legal split and grab them all.
+    // Example: [5, 6, Joker] -> joker's free, splits are 0-below/1-below,
+    // giving {4,7} and {3,8} -> together {3,4,7,8}.
+    public List<PossibleAddition> getPossibleRunAdditions() {
+        List<PossibleAddition> result = new ArrayList<>();
+        if (getSetType() != SetType.RUN) return result;
 
         List<Tile> sorted = new ArrayList<>(tiles);
         sorted.sort(Comparator.comparingInt(Tile::getValue));
 
-        int lowestReal = -1;
-        int jokersBefore = 0;
-
-        // Find the first real number and count jokers acting as smaller numbers
+        List<Tile> numbersOnly = new ArrayList<>();
+        int jokerCount = 0;
         for (Tile t : sorted) {
             if (t.isJoker()) {
-                jokersBefore++;
+                jokerCount++;
             } else {
-                lowestReal = t.getValue();
-                break;
+                numbersOnly.add(t); // sorted already puts these in ascending order
             }
         }
 
-        // Calculate the logical start of the run
-        // Example: Joker, 4, 5. Lowest=4, Jokers=1. Logical Start = 3.
-        int logicalStart = lowestReal - jokersBefore;
+        // same gap walk as isRun(), just to count how many jokers are actually
+        // stuck plugging holes between real numbers
+        int expected = numbersOnly.get(0).getValue();
+        int jokersUsedForGaps = 0;
+        for (Tile t : numbersOnly) {
+            while (expected < t.getValue()) {
+                jokersUsedForGaps++;
+                expected++;
+            }
+            expected++;
+        }
 
-        // Check boundary: We cannot go below 1
-        if (logicalStart <= 1) return -1;
+        int lowestReal = numbersOnly.get(0).getValue();
+        int highestReal = numbersOnly.get(numbersOnly.size() - 1).getValue();
+        int spareJokers = jokerCount - jokersUsedForGaps;
+        Tile.Color runColor = numbersOnly.get(0).getColor();
 
-        return logicalStart - 1; // Return the value needed to extend backwards
+        int spaceBelow = lowestReal - 1;
+        int spaceAbove = 13 - highestReal;
+
+        // try every way to split the spare jokers between the two ends.
+        // still has to stay inside 1..13 on both sides, same overall bound
+        // isRun() already checks
+        int minBelow = Math.max(0, spareJokers - spaceAbove);
+        int maxBelow = Math.min(spareJokers, spaceBelow);
+        for (int jokersBelow = minBelow; jokersBelow <= maxBelow; jokersBelow++) {
+            int jokersAbove = spareJokers - jokersBelow;
+            int logicalStart = lowestReal - jokersBelow;
+            int logicalEnd = highestReal + jokersAbove;
+
+            if (logicalStart - 1 >= 1) {
+                addIfNew(result, new PossibleAddition(logicalStart - 1, runColor));
+            }
+            if (logicalEnd + 1 <= 13) {
+                addIfNew(result, new PossibleAddition(logicalEnd + 1, runColor));
+            }
+        }
+        return result;
+    }
+
+    private void addIfNew(List<PossibleAddition> list, PossibleAddition candidate) {
+        if (!list.contains(candidate)) list.add(candidate);
     }
 
     // Helper to get the run's color (returns null if it's a group or invalid)

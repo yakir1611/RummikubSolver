@@ -151,7 +151,7 @@ public class OptimalSolverTest {
     @Test
     public void boardJokerIsReusedNeverStranded() {
         // Board: R11 R12 Joker. Hand: R10, R13. The only way to play both hand tiles
-        // is the 5-run Joker(9) R10 R11 R12 R13 — the board joker must stay in play.
+        // is the 5-run Joker(9) R10 R11 R12 R13, so the board joker must stay in play.
         Tile jk = joker();
         Board b = board(set(t(11, RED), t(12, RED), jk));
         Hand h = hand(t(10, RED), t(13, RED));
@@ -214,7 +214,7 @@ public class OptimalSolverTest {
         assertTrue(r.isProvablyOptimal());
     }
 
-    // ---- Scenario 7: node cap reached — best-so-far returned and flagged ----
+    // ---- Scenario 7: node cap reached, best-so-far returned and flagged ----
 
     @Test
     public void nodeCapReturnsBestFoundAndFlagsIncomplete() {
@@ -237,9 +237,9 @@ public class OptimalSolverTest {
 
     @Test
     public void handWithJokerDoesNotCrash() {
-        // גוקר ביד עם 2 אריחים אמיתיים שהיו קורסים ב-Greedy (NPE על מיון לפי צבע, כי
-        // לגוקר אין צבע). Greedy עכשיו פשוט מתעלם מהגוקר, אבל החיפוש העצמאי של
-        // OptimalSolver לא תלוי ב-Greedy ובונה בעצמו רצף עם הגוקר.
+        // Joker in hand with 2 real tiles that used to crash Greedy (NPE on color sort, because
+        // joker has no color). Greedy now just skips the joker, but OptimalSolver's own search
+        // doesn't depend on Greedy and builds a run with the joker itself.
         Board b = board();
         Hand h = hand(t(10, RED), t(11, RED), joker());
 
