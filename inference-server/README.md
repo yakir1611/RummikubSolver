@@ -62,7 +62,11 @@ directly with no conversion math beyond clamping to `[0, 1]`.
   request - reloading a ~40MB PyTorch model on every call would make each
   request far slower than the actual inference.
 - The Android app's default `DETECTION_SERVER_URL`
-  (`http://10.0.2.2:8001/detect`) points at exactly this server, run on the
-  same machine as Android Studio - same convention as the Node server's
-  `APP_SERVER_URL`. A physical device needs a real reachable address there
-  instead.
+  (`http://127.0.0.1:8001/detect`) assumes this server runs on the same
+  machine as Android Studio, with the phone connected over USB and the
+  `adbReverse` Gradle task (see `app/build.gradle.kts`) forwarding the port -
+  same convention as the Node server's `APP_SERVER_URL`.
+- To reach this server over Wi-Fi instead (no cable), run it with
+  `--host 0.0.0.0` as above and set `app.server.host=<your machine's LAN IP>`
+  in the app's `local.properties`. That overrides both `DETECTION_SERVER_URL`
+  and `APP_SERVER_URL` to point at that address instead of loopback.
