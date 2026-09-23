@@ -31,6 +31,13 @@
         <item name="cornerRadius">14dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textAppearance">@style/TextAppearance.Material3.TitleMedium</item>
+        <!-- TextAppearance.Material3.TitleMedium has no textColor of its own,
+             so without this the text fell back to a dark color - unreadable
+             on the green background. ?attr/colorOnPrimary didn't work here -
+             Widget.Material3.Button applies its own internal theme overlay
+             that changes what colorOnPrimary resolves to inside the button,
+             so a fixed literal is used instead. -->
+        <item name="android:textColor">@color/white</item>
     </style>
 
     <style name="Widget.Rummi.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">

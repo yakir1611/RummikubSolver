@@ -7,7 +7,10 @@
     android:orientation="vertical"
     android:padding="18dp">
 
+    <!-- default text fits this screen (games list) as-is; GameHistoryActivity
+         (turns inside one game) overrides it with the game's own name -->
     <TextView
+        android:id="@+id/textHistoryTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"

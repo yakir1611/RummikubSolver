@@ -20,11 +20,8 @@ import com.example.rummikubsolver.Tile;
 import com.example.rummikubsolver.vision.TileCodeFormat;
 import com.google.android.material.button.MaterialButton;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -47,7 +44,7 @@ public class SolutionActivity extends AppCompatActivity {
     private LinearLayout afterBoardContainer, remainingHandContainer;
     private TextView textPlayedCount, textRemaining;
     private View loadingOverlay;
-    private MaterialButton btnNewTurn;
+    private MaterialButton btnNewTurn, btnHome;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -65,11 +62,22 @@ public class SolutionActivity extends AppCompatActivity {
         textRemaining = findViewById(R.id.textRemaining);
         loadingOverlay = findViewById(R.id.loadingOverlay);
         btnNewTurn = findViewById(R.id.btnNewTurn);
+        btnHome = findViewById(R.id.btnHome);
 
         btnNewTurn.setOnClickListener(v -> {
             TurnSession.get().startNewTurn();
             Intent i = new Intent(this, CaptureActivity.class);
             i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(i);
+            finish();
+        });
+
+        btnHome.setOnClickListener(v -> {
+            // clears everything above HomeActivity in the back stack, so
+            // pressing back from Home doesn't walk through the whole turn
+            // again - same idea as btnNewTurn above, just going further back
+            Intent i = new Intent(this, HomeActivity.class);
+            i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(i);
             finish();
         });
@@ -140,20 +148,55 @@ public class SolutionActivity extends AppCompatActivity {
      * Saves the just-computed solution to history - all four sections the
      * screen just rendered (board/hand, before/after), in the same tile-code
      * format BoardRenderer was fed. No board photo involved.
+     *
+     * Default name is "תור מספר N", N being the running count of turns saved
+     * in this game so far (see TurnSession.getNextTurnNumber()) - not a
+     * timestamp, since HistoryStore.Entry already carries one.
+     *
+     * The game itself is created lazily: if this is the first turn (no
+     * currentGameId yet), the game is created on the server right here,
+     * using the name HomeActivity remembered, and only then is the entry
+     * saved under it. A user who never gets a feasible move never creates a
+     * game at all - see TurnSession.startNewGame().
      */
     private void saveToHistory(OptimalSolver.Result result, TurnSession.GameState stateBefore, List<Tile> handRemaining) {
-        String name = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
+        String name = getString(R.string.solution_turn_default_name, TurnSession.get().getNextTurnNumber());
 
         List<List<String>> boardBefore = toSetCodes(stateBefore.board.getSets());
         List<String> handBefore = TileCodeFormat.toCodes(stateBefore.hand.getTiles());
         List<List<String>> boardAfter = toSetCodes(result.newBoardSets);
         List<String> handRemainingCodes = TileCodeFormat.toCodes(handRemaining);
 
+        String gameId = TurnSession.get().getCurrentGameId();
+        if (gameId != null) {
+            saveEntry(gameId, name, result, boardBefore, handBefore, boardAfter, handRemainingCodes);
+            return;
+        }
+
+        HistoryStore.get().createGame(TurnSession.get().getPendingGameName(), new HistoryStore.GameCreateCallback() {
+            @Override
+            public void onCreated(String newGameId) {
+                TurnSession.get().setCurrentGameId(newGameId);
+                saveEntry(newGameId, name, result, boardBefore, handBefore, boardAfter, handRemainingCodes);
+            }
+
+            @Override
+            public void onError(String message) {
+                Toast.makeText(SolutionActivity.this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void saveEntry(String gameId, String name, OptimalSolver.Result result,
+                            List<List<String>> boardBefore, List<String> handBefore,
+                            List<List<String>> boardAfter, List<String> handRemainingCodes) {
         HistoryStore.get().save(name, result.playedHandTiles.size(),
                 boardBefore, handBefore, boardAfter, handRemainingCodes,
+                gameId,
                 new HistoryStore.SaveCallback() {
                     @Override
                     public void onSaved() {
+                        TurnSession.get().incrementTurnCount();
                         Toast.makeText(SolutionActivity.this, "נשמר בהיסטוריה", Toast.LENGTH_SHORT).show();
                     }
 

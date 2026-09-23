@@ -51,73 +51,94 @@
                     android:textAppearance="@style/TextAppearance.Rummi.Body" />
             </LinearLayout>
 
-            <!-- 1. the board as it was going into this solve -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
-                android:text="@string/solution_board_before"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="@color/text_secondary"
-                android:textStyle="bold" />
-
+            <!-- "before" group (board + hand going into this solve) - framed
+                 in a neutral color so it reads as visually distinct from the
+                 "after" group below, not just by heading color -->
             <LinearLayout
-                android:id="@+id/beforeBoardContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
-
-            <!-- 2. the full hand going into this solve -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
-                android:text="@string/solution_hand_before"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="@color/text_secondary"
-                android:textStyle="bold" />
+                android:background="@drawable/bg_group_before"
+                android:orientation="vertical"
+                android:padding="14dp">
 
+                <!-- 1. the board as it was going into this solve -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/solution_board_before"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="@color/text_secondary"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/beforeBoardContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+
+                <!-- 2. the full hand going into this solve -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/solution_hand_before"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="@color/text_secondary"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/beforeHandContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <!-- "after" group (the solver's result) - framed in the brand
+                 color, same one the "after" headings already used -->
             <LinearLayout
-                android:id="@+id/beforeHandContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_group_after"
+                android:orientation="vertical"
+                android:padding="14dp">
 
-            <!-- 3. the solver's resulting board -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
-                android:text="@string/solution_board_after"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="@color/brand_primary"
-                android:textStyle="bold" />
+                <!-- 3. the solver's resulting board -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/solution_board_after"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="@color/brand_primary"
+                    android:textStyle="bold" />
 
-            <LinearLayout
-                android:id="@+id/afterBoardContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
+                <LinearLayout
+                    android:id="@+id/afterBoardContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
 
-            <!-- 4. whatever's left in hand after the move -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
-                android:text="@string/solution_hand_remaining"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="@color/brand_accent"
-                android:textStyle="bold" />
+                <!-- 4. whatever's left in hand after the move -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:text="@string/solution_hand_remaining"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                    android:textColor="@color/brand_accent"
+                    android:textStyle="bold" />
 
-            <LinearLayout
-                android:id="@+id/remainingHandContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical" />
+                <LinearLayout
+                    android:id="@+id/remainingHandContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
 
             <Space
                 android:layout_width="match_parent"
@@ -139,9 +160,22 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnNewTurn"
             style="@style/Widget.Rummi.Button"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="56dp"
+            android:layout_weight="1"
             android:text="@string/solution_new_turn" />
+
+        <Space
+            android:layout_width="10dp"
+            android:layout_height="1dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHome"
+            style="@style/Widget.Rummi.Button.Outlined"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:text="@string/solution_go_home" />
     </LinearLayout>
 
     <FrameLayout

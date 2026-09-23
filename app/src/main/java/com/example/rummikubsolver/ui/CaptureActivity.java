@@ -45,7 +45,7 @@ public class CaptureActivity extends AppCompatActivity {
     private Step step = Step.BOARD;
 
     private ImageView imagePreview;
-    private TextView textPlaceholder, textStep, textHint, textLoading;
+    private TextView textPlaceholder, textStep, textTitle, textHint, textLoading;
     private MaterialButton btnCamera, btnGallery, btnNext;
     private View loadingOverlay;
 
@@ -63,6 +63,7 @@ public class CaptureActivity extends AppCompatActivity {
         imagePreview = findViewById(R.id.imagePreview);
         textPlaceholder = findViewById(R.id.textPlaceholder);
         textStep = findViewById(R.id.textStep);
+        textTitle = findViewById(R.id.textTitle);
         textHint = findViewById(R.id.textHint);
         textLoading = findViewById(R.id.textLoading);
         btnCamera = findViewById(R.id.btnCamera);
@@ -146,10 +147,12 @@ public class CaptureActivity extends AppCompatActivity {
 
         if (s == Step.BOARD) {
             textStep.setText(R.string.capture_step_board);
+            textTitle.setText(R.string.capture_title_board);
             textHint.setText(R.string.capture_hint_board);
             btnNext.setText(R.string.capture_next);
         } else {
             textStep.setText(R.string.capture_step_hand);
+            textTitle.setText(R.string.capture_title_hand);
             textHint.setText(R.string.capture_hint_hand);
             btnNext.setText(R.string.capture_analyze);
         }

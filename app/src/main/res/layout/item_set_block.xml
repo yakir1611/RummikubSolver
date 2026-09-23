@@ -15,10 +15,20 @@
         android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
         android:textColor="@color/text_secondary" />
 
-    <!-- columnCount set at runtime -->
-    <GridLayout
-        android:id="@+id/setTiles"
+    <!-- a full 13-tile run is wider than the screen - let it scroll sideways
+         instead of clipping the tiles that don't fit -->
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:columnCount="6" />
+        android:scrollbars="none">
+
+        <!-- columnCount set at runtime. wrap_content (not match_parent) so
+             the grid can actually grow past the screen width and trigger
+             the scroll above, instead of being clipped to it. -->
+        <GridLayout
+            android:id="@+id/setTiles"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:columnCount="6" />
+    </HorizontalScrollView>
 </LinearLayout>

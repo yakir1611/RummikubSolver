@@ -92,7 +92,7 @@
                 android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
                 android:textStyle="bold" />
 
-            <!-- opens a picker dialog listing existing sets, "לא משויך" and "+ סט חדש" -->
+            <!-- opens a picker dialog listing existing sets, "Unassigned" and "+ New Set" -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSet"
                 style="@style/Widget.Material3.Button.OutlinedButton"

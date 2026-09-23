@@ -44,6 +44,7 @@
         <activity android:name=".ui.ReviewActivity" android:exported="false" />
         <activity android:name=".ui.SolutionActivity" android:exported="false" />
         <activity android:name=".ui.HistoryActivity" android:exported="false" />
+        <activity android:name=".ui.GameHistoryActivity" android:exported="false" />
         <activity android:name=".ui.HistoryDetailActivity" android:exported="false" />
 
         <!-- kept registered (not launcher anymore) so the project still builds -
