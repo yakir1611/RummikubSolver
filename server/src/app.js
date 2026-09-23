@@ -7,6 +7,7 @@ const cors = require('cors');
 
 const authRoutes = require('./routes/authRoutes');
 const historyRoutes = require('./routes/historyRoutes');
+const gameRoutes = require('./routes/gameRoutes');
 
 function createApp() {
     const app = express();
@@ -22,6 +23,7 @@ function createApp() {
 
     app.use('/api/auth', authRoutes);
     app.use('/api/history', historyRoutes);
+    app.use('/api/games', gameRoutes);
 
     // catch-all for unknown routes
     app.use((req, res) => {

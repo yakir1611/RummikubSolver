@@ -16,6 +16,16 @@ const historyEntrySchema = new mongoose.Schema({
         index: true, // every read is "give me this user's history", so this
                      // is the field we filter on - index it
     },
+    gameId: {
+        // which game this turn belongs to (see models/Game.js) - optional so
+        // entries saved before games existed still load fine, just without a
+        // game to show up under. Every read of it also filters by userId
+        // (see gameController.getGameHistory), same "index it" reasoning.
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Game',
+        required: false,
+        index: true,
+    },
     timestamp: {
         type: Date,
         default: Date.now,
