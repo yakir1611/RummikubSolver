@@ -1,17 +1,28 @@
 import java.io.File
 import java.io.ByteArrayOutputStream
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
 }
 
-// Not secrets, and identical for every developer testing via USB + adb
-// reverse (see the adbReverse task below) - so these are committed literals
-// rather than local.properties entries. Only sdk.dir stays in
-// local.properties: that one is genuinely machine-specific and is filled in
-// automatically by Android Studio, not something a developer edits by hand.
-val appServerUrl = "http://localhost:3000/"
-val detectionServerUrl = "http://127.0.0.1:8001/detect"
+// Default (localhost/127.0.0.1) is identical for every developer testing
+// via USB + adb reverse (see the adbReverse task below), so it's a committed
+// literal rather than a required local.properties entry.
+//
+// To test over Wi-Fi instead (phone and machine on the same network, no
+// cable), set `app.server.host=<your machine's LAN IP>` in local.properties
+// - that file is machine-specific, untracked (same as sdk.dir below), and
+// overrides both URLs below to point at that address instead of loopback.
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+val serverHost: String? = localProperties.getProperty("app.server.host")
+val appServerUrl = "http://${serverHost ?: "localhost"}:3000/"
+val detectionServerUrl = "http://${serverHost ?: "127.0.0.1"}:8001/detect"
 
 android {
     namespace = "com.example.rummikubsolver"
