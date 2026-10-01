@@ -53,9 +53,4 @@ public class Tile {
         Tile tile = (Tile) o;
         return id == tile.id;
     }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
-    }
 }

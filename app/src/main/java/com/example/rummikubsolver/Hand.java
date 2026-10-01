@@ -4,7 +4,7 @@ import java.util.List;
 public class Hand {
     private final List<Tile> tiles;
 
-    // Default constructor (empty hand)
+    // Default constructor
     public Hand() {
         this.tiles = new ArrayList<>();
     }

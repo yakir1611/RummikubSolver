@@ -13,12 +13,12 @@ public class BoundingBox {
     public final float height;
     public final float rotation;
 
-    /** Straight (non-rotated) box. */
+    // Straight (non-rotated) box.
     public BoundingBox(float x, float y, float width, float height) {
         this(x, y, width, height, 0.0f);
     }
 
-    /** Box with a rotation angle (for tilted tiles). */
+    // Box with a rotation angle for tilted tiles
     public BoundingBox(float x, float y, float width, float height, float rotation) {
         this.x = x;
         this.y = y;
@@ -27,22 +27,15 @@ public class BoundingBox {
         this.rotation = rotation;
     }
 
-    /** Returns a new box moved/resized by the given deltas. Rotation is preserved. */
+    // makes a new box moved and resized by these amounts the original box stays the same
+    // and the rotation is kept
     public BoundingBox adjustedBy(float dx, float dy, float dWidth, float dHeight) {
-        return new BoundingBox(x + dx, y + dy, width + dWidth, height + dHeight, rotation);
+        return new BoundingBox(x + dx, y + dy, width + dWidth, height + dHeight
+                , rotation);
     }
 
-    /** Returns a new box with the same position/size but a different rotation. */
+    // same box just a new rotation angle original stays untouched
     public BoundingBox withRotation(float newRotation) {
         return new BoundingBox(x, y, width, height, newRotation);
-    }
-
-    @Override
-    public String toString() {
-        if (rotation == 0.0f) {
-            return String.format("BoundingBox[x=%.3f, y=%.3f, w=%.3f, h=%.3f]", x, y, width, height);
-        }
-        return String.format("BoundingBox[x=%.3f, y=%.3f, w=%.3f, h=%.3f, rot=%.1f°]",
-                x, y, width, height, rotation);
     }
 }

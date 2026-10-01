@@ -41,6 +41,41 @@ public class DetectionClient {
     // hops back to main thread so the listener can safely touch UI
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    private static volatile String preferredBaseUrl = BuildConfig.DETECTION_SERVER_URL_USB;
+
+    private String otherBaseUrl(String current) {
+        return current.equals(BuildConfig.DETECTION_SERVER_URL_USB)
+                ? BuildConfig.DETECTION_SERVER_URL_WIFI
+                : BuildConfig.DETECTION_SERVER_URL_USB;
+    }
+
+    private interface RequestFactory {
+        Request build(String baseUrl);
+    }
+
+    private void executeWithFallback(RequestFactory factory, Callback finalCallback) {
+        attempt(factory, finalCallback, preferredBaseUrl, true);
+    }
+
+    private void attempt(RequestFactory factory, Callback finalCallback, String tryUrl, boolean canFallback) {
+        client.newCall(factory.build(tryUrl)).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                if (canFallback) {
+                    attempt(factory, finalCallback, otherBaseUrl(tryUrl), false);
+                } else {
+                    finalCallback.onFailure(call, e);
+                }
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                preferredBaseUrl = tryUrl;
+                finalCallback.onResponse(call, response);
+            }
+        });
+    }
+
     public interface DetectionListener {
         void onSuccess(List<DetectionParser.RawDetection> detections);
         void onFailure(Exception e);
@@ -59,15 +94,10 @@ public class DetectionClient {
             listener.onFailure(e);
             return;
         }
-
-        RequestBody requestBody = RequestBody.create(body.toString(), JSON);
-        Request request = new Request.Builder()
-                .url(BuildConfig.DETECTION_SERVER_URL)
-                .post(requestBody)
-                .build();
-
-        // enqueue = async, runs on OkHttp's own background thread
-        client.newCall(request).enqueue(new Callback() {
+        executeWithFallback(base -> new Request.Builder()
+                .url(base)
+                .post(RequestBody.create(body.toString(), JSON))
+                .build(), new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 mainHandler.post(() -> listener.onFailure(e));
@@ -90,6 +120,37 @@ public class DetectionClient {
                 }
             }
         });
+
+        //RequestBody requestBody = RequestBody.create(body.toString(), JSON);
+        //Request request = new Request.Builder()
+        //  .url(BuildConfig.DETECTION_SERVER_URL)
+        //    .post(requestBody)
+        //      .build();
+
+        // enqueue = async, runs on OkHttp's own background thread
+        //client.newCall(request).enqueue(new Callback() {
+        //@Override
+        //  public void onFailure(Call call, IOException e) {
+        //        mainHandler.post(() -> listener.onFailure(e));
+        //      }
+
+        //        @Override
+        //          public void onResponse(Call call, Response response) throws IOException {
+        //if (!response.isSuccessful()) {
+        //mainHandler.post(() -> listener.onFailure(
+        //        new IOException("Detection server returned " + response.code())));
+        //  return;
+        //}
+
+        //String responseBody = response.body() != null ? response.body().string() : "";
+        //try {
+        // List<DetectionParser.RawDetection> raw = convertResponseToDetections(responseBody);
+        //   mainHandler.post(() -> listener.onSuccess(raw));
+        // } catch (JSONException e) {
+        //       mainHandler.post(() -> listener.onFailure(e));
+        //     }
+        //   }
+        // });
     }
 
     private String bitmapToBase64(Bitmap bitmap) {
