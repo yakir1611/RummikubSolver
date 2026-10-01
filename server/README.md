@@ -63,9 +63,9 @@ no Jest/Mocha dependency needed.
 
 **Why these tests mock MongoDB instead of using a real one:** the natural
 choice (`mongodb-memory-server`, spins up a real disposable `mongod`) needs
-to download a `mongod` binary the first time it runs. That download is
-blocked in the sandbox this was built in (network allowlist), so the tests
-here mock the two or three Mongoose calls each controller makes
+to download a `mongod` binary the first time it runs. That download doesn't
+work reliably on a restricted network, so the tests here mock the two or
+three Mongoose calls each controller makes
 (`User.create`, `User.findOne`, `HistoryEntry.create`, `HistoryEntry.find`)
 and run everything else for real: actual bcrypt hashing, actual JWT
 signing/verification, actual Express-shaped req/res objects. That's real
@@ -84,9 +84,9 @@ npm install --save-dev mongodb-memory-server supertest
 
 then write a test that calls `MongoMemoryServer.create()`, `mongoose.connect()`
 to its URI, `createApp()` from `src/app.js`, and drives it with `supertest`
-the same way the mocked tests drive the controllers directly. Ask if you'd
-like that test file written out - it's a quick add, this README just
-doesn't assume the dependency is installed since it can't be verified here.
+the same way the mocked tests drive the controllers directly. That test
+file isn't included here since the dependency isn't installed by default -
+it's a quick add whenever someone wants to run it.
 
 ## Security notes (read before submitting)
 

@@ -35,10 +35,10 @@ import java.util.List;
  * Board-set assignment works the same way (tap btnSet -> AlertDialog.setItems)
  * and is hidden entirely for hand tiles, which have no board-set concept. The
  * list is built from usedBoardSetIndices and labeled by POSITION in that list
- * ("סט 1", "סט 2"...), not by the raw boardSetIndex value - ReviewActivity
+ * ("Set 1", "Set 2"...), not by the raw boardSetIndex value - ReviewActivity
  * labels its blocks by iteration position too, so this keeps the numbers in
- * sync once indices get sparse (after "+ סט חדש" or a set getting emptied
- * out). "לא משויך" and "+ סט חדש" are the last two items.
+ * sync once indices get sparse (after "+ New Set" or a set getting emptied
+ * out). "Unassigned" and "+ New Set" are the last two items.
  */
 final class TileEditorDialog {
 
@@ -168,7 +168,7 @@ final class TileEditorDialog {
         dialog.show();
     }
 
-    /** Shows the picked number, "ג'וקר" for a joker, or the placeholder if nothing's picked yet. */
+    /** Shows the picked number, "Joker" for a joker, or the placeholder if nothing's picked yet. */
     private static void updateNumberLabel(MaterialButton btnNumber, Integer number, boolean joker) {
         if (joker) {
             btnNumber.setText(R.string.editor_joker);
@@ -180,9 +180,9 @@ final class TileEditorDialog {
     }
 
     /**
-     * Shows the current set assignment as "סט N" (N = position in
+     * Shows the current set assignment as "Set N" (N = position in
      * usedBoardSetIndices, same numbering ReviewActivity renders), or
-     * "לא משויך" if unassigned. A just-picked "+ סט חדש" value won't be in
+     * "Unassigned" if unassigned. A just-picked "+ New Set" value won't be in
      * usedBoardSetIndices yet (that list is a snapshot from when the dialog
      * opened) - it's always the newest/highest index, so it always lands at
      * the last position, same as it will once saved and re-grouped.

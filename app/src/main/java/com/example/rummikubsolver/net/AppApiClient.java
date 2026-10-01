@@ -87,10 +87,23 @@ public class AppApiClient {
         }
     }
 
+    /** One game, as the server returns it. Mirrors HistoryStore.Game. */
+    public static class GameDto {
+        public final String id;
+        public final String name;
+        public final long timestamp;
+
+        GameDto(String id, String name, long timestamp) {
+            this.id = id;
+            this.name = name;
+            this.timestamp = timestamp;
+        }
+    }
+
     public interface AuthCallback {
         void onSuccess(AuthResult result);
         /** message is already a user-facing Hebrew string - the server sends
-         *  one (e.g. "שם המשתמש כבר תפוס"), we fall back to a generic one
+         *  one (e.g. "username already taken"), we fall back to a generic one
          *  only for network-level failures the server never got to answer. */
         void onFailure(String message);
     }
@@ -102,6 +115,16 @@ public class AppApiClient {
 
     public interface HistoryListCallback {
         void onSuccess(List<HistoryEntryDto> entries);
+        void onFailure(String message);
+    }
+
+    public interface GameCreateCallback {
+        void onSuccess(GameDto game);
+        void onFailure(String message);
+    }
+
+    public interface GameListCallback {
+        void onSuccess(List<GameDto> games);
         void onFailure(String message);
     }
 
@@ -173,12 +196,14 @@ public class AppApiClient {
      * @param handBefore the full hand going into the solve, flat tile-code array, or null
      * @param boardAfter the solver's resulting board, same shape as boardBefore, or null
      * @param handRemaining hand tiles left after the move, flat tile-code array, or null
+     * @param gameId the game this turn belongs to (see TurnSession.getCurrentGameId()), or null
      */
     public void saveHistoryEntry(String token, String name, int tilesPlayed,
                                   @Nullable List<List<String>> boardBefore,
                                   @Nullable List<String> handBefore,
                                   @Nullable List<List<String>> boardAfter,
                                   @Nullable List<String> handRemaining,
+                                  @Nullable String gameId,
                                   HistorySaveCallback callback) {
         JSONObject body = new JSONObject();
         try {
@@ -188,6 +213,7 @@ public class AppApiClient {
             putStringList(body, "handBefore", handBefore);
             putSetLists(body, "boardAfter", boardAfter);
             putStringList(body, "handRemaining", handRemaining);
+            if (gameId != null) body.put("gameId", gameId);
         } catch (JSONException e) {
             callback.onFailure("שגיאה פנימית בבניית הבקשה");
             return;
@@ -227,6 +253,129 @@ public class AppApiClient {
         });
     }
 
+    /** POST /api/games  { name } -> the created game. */
+    public void createGame(String token, String name, GameCreateCallback callback) {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("name", name);
+        } catch (JSONException e) {
+            callback.onFailure("שגיאה פנימית בבניית הבקשה");
+            return;
+        }
+        postJson("api/games", body, token, new SimpleJsonCallback() {
+            @Override
+            void onSuccess(JSONObject json) {
+                try {
+                    GameDto game = parseGame(json);
+                    mainHandler.post(() -> callback.onSuccess(game));
+                } catch (JSONException | java.time.format.DateTimeParseException e) {
+                    mainHandler.post(() -> callback.onFailure("תשובת שרת לא תקינה"));
+                }
+            }
+
+            @Override
+            void onError(String message) {
+                mainHandler.post(() -> callback.onFailure(message));
+            }
+        });
+    }
+
+    /** PATCH /api/games/:id  { name } -> renames a game. */
+    public void renameGame(String token, String gameId, String newName, HistorySaveCallback callback) {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("name", newName);
+        } catch (JSONException e) {
+            callback.onFailure("שגיאה פנימית בבניית הבקשה");
+            return;
+        }
+        patchJson("api/games/" + gameId, body, token, new SimpleJsonCallback() {
+            @Override
+            void onSuccess(JSONObject json) {
+                mainHandler.post(callback::onSuccess);
+            }
+
+            @Override
+            void onError(String message) {
+                mainHandler.post(() -> callback.onFailure(message));
+            }
+        });
+    }
+
+    /** GET /api/games -> this user's games, newest first. */
+    public void getGames(String token, GameListCallback callback) {
+        Request request = new Request.Builder()
+                .url(baseUrl + "api/games")
+                .header("Authorization", "Bearer " + token)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                mainHandler.post(() -> callback.onFailure(networkErrorMessage(e)));
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                String bodyText = response.body() != null ? response.body().string() : "";
+                if (!response.isSuccessful()) {
+                    mainHandler.post(() -> callback.onFailure(extractServerError(bodyText, response.code())));
+                    return;
+                }
+                try {
+                    JSONArray arr = new JSONArray(bodyText);
+                    List<GameDto> games = new ArrayList<>();
+                    for (int i = 0; i < arr.length(); i++) {
+                        games.add(parseGame(arr.getJSONObject(i)));
+                    }
+                    mainHandler.post(() -> callback.onSuccess(games));
+                } catch (JSONException | java.time.format.DateTimeParseException e) {
+                    mainHandler.post(() -> callback.onFailure("תשובת שרת לא תקינה"));
+                }
+            }
+        });
+    }
+
+    /** GET /api/games/:id/history -> the turns saved inside this game, newest first. */
+    public void getGameHistory(String token, String gameId, HistoryListCallback callback) {
+        Request request = new Request.Builder()
+                .url(baseUrl + "api/games/" + gameId + "/history")
+                .header("Authorization", "Bearer " + token)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                mainHandler.post(() -> callback.onFailure(networkErrorMessage(e)));
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                String bodyText = response.body() != null ? response.body().string() : "";
+                if (!response.isSuccessful()) {
+                    mainHandler.post(() -> callback.onFailure(extractServerError(bodyText, response.code())));
+                    return;
+                }
+                try {
+                    List<HistoryEntryDto> entries = parseHistoryEntries(bodyText);
+                    mainHandler.post(() -> callback.onSuccess(entries));
+                } catch (JSONException | java.time.format.DateTimeParseException e) {
+                    mainHandler.post(() -> callback.onFailure("תשובת שרת לא תקינה"));
+                }
+            }
+        });
+    }
+
+    /** Same {_id, name, timestamp} shape parseGame() reads - factored out since
+     *  createGame and getGames both parse it. */
+    private GameDto parseGame(JSONObject o) throws JSONException {
+        long ts = java.time.Instant.parse(o.getString("timestamp")).toEpochMilli();
+        String name = o.has("name") && !o.isNull("name") ? o.getString("name") : null;
+        return new GameDto(o.getString("_id"), name, ts);
+    }
+
     public void getHistory(String token, HistoryListCallback callback) {
         Request request = new Request.Builder()
                 .url(baseUrl + "api/history")
@@ -248,34 +397,42 @@ public class AppApiClient {
                     return;
                 }
                 try {
-                    JSONArray arr = new JSONArray(bodyText);
-                    List<HistoryEntryDto> entries = new ArrayList<>();
-                    for (int i = 0; i < arr.length(); i++) {
-                        JSONObject o = arr.getJSONObject(i);
-                        // Mongo stores timestamp as an ISO date string; Date.parse
-                        // via new Date().getTime() equivalent here is manual since
-                        // org.json has no date parsing - java.util handles ISO-8601 fine
-                        long ts = java.time.Instant.parse(o.getString("timestamp")).toEpochMilli();
-                        String id = o.getString("_id");
-                        String name = o.has("name") && !o.isNull("name") ? o.getString("name") : null;
-
-                        String boardImage = o.has("boardImage") && !o.isNull("boardImage")
-                                ? o.getString("boardImage") : null;
-
-                        List<List<String>> boardBefore = parseSetLists(o, "boardBefore");
-                        List<String> handBefore = parseStringList(o, "handBefore");
-                        List<List<String>> boardAfter = parseSetLists(o, "boardAfter");
-                        List<String> handRemaining = parseStringList(o, "handRemaining");
-
-                        entries.add(new HistoryEntryDto(id, name, ts, o.getInt("tilesPlayed"),
-                                boardImage, boardBefore, handBefore, boardAfter, handRemaining));
-                    }
+                    List<HistoryEntryDto> entries = parseHistoryEntries(bodyText);
                     mainHandler.post(() -> callback.onSuccess(entries));
                 } catch (JSONException | java.time.format.DateTimeParseException e) {
                     mainHandler.post(() -> callback.onFailure("תשובת שרת לא תקינה"));
                 }
             }
         });
+    }
+
+    /** Parses a JSON array of history entries - same response shape GET
+     *  /api/history and GET /api/games/:id/history both return, so both
+     *  getHistory() and getGameHistory() share this. */
+    private List<HistoryEntryDto> parseHistoryEntries(String bodyText) throws JSONException {
+        JSONArray arr = new JSONArray(bodyText);
+        List<HistoryEntryDto> entries = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.getJSONObject(i);
+            // Mongo stores timestamp as an ISO date string; Date.parse via
+            // new Date().getTime() equivalent here is manual since org.json
+            // has no date parsing - java.util handles ISO-8601 fine
+            long ts = java.time.Instant.parse(o.getString("timestamp")).toEpochMilli();
+            String id = o.getString("_id");
+            String name = o.has("name") && !o.isNull("name") ? o.getString("name") : null;
+
+            String boardImage = o.has("boardImage") && !o.isNull("boardImage")
+                    ? o.getString("boardImage") : null;
+
+            List<List<String>> boardBefore = parseSetLists(o, "boardBefore");
+            List<String> handBefore = parseStringList(o, "handBefore");
+            List<List<String>> boardAfter = parseSetLists(o, "boardAfter");
+            List<String> handRemaining = parseStringList(o, "handRemaining");
+
+            entries.add(new HistoryEntryDto(id, name, ts, o.getInt("tilesPlayed"),
+                    boardImage, boardBefore, handBefore, boardAfter, handRemaining));
+        }
+        return entries;
     }
 
     // ---- shared plumbing ----

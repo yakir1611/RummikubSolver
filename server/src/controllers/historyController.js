@@ -7,7 +7,7 @@ const MAX_ENTRIES = 50;
 // name, and all four sections the Solution screen showed: board/hand,
 // before/after) for the currently logged-in user.
 async function saveEntry(req, res) {
-    const { name, tilesPlayed, boardImage, boardBefore, handBefore, boardAfter, handRemaining } = req.body;
+    const { name, tilesPlayed, boardImage, boardBefore, handBefore, boardAfter, handRemaining, gameId } = req.body;
 
     if (typeof tilesPlayed !== 'number' || tilesPlayed < 0) {
         return res.status(400).json({ error: 'tilesPlayed חייב להיות מספר לא-שלילי' });
@@ -23,6 +23,7 @@ async function saveEntry(req, res) {
             handBefore,
             boardAfter,
             handRemaining,
+            gameId,
         });
         return res.status(201).json(entry);
     } catch (err) {

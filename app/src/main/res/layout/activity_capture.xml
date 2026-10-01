@@ -27,12 +27,13 @@
                 android:textColor="@color/brand_accent"
                 android:textStyle="bold" />
 
+            <!-- text set from CaptureActivity per step (board/hand), not
+                 statically here - see showStep() -->
             <TextView
                 android:id="@+id/textTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="@string/capture_title"
                 android:textAppearance="@style/TextAppearance.Rummi.Title" />
 
             <TextView

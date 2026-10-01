@@ -60,6 +60,24 @@ public class HistoryStore {
         }
     }
 
+    /** One game - a container of turns. Mirrors AppApiClient.GameDto. */
+    public static class Game {
+        public final String id;
+        public final String name;
+        public final long timestamp;
+
+        Game(String id, String name, long timestamp) {
+            this.id = id;
+            this.name = name;
+            this.timestamp = timestamp;
+        }
+
+        public String formattedDate() {
+            SimpleDateFormat f = new SimpleDateFormat("dd.MM.yyyy, HH:mm", new Locale("he"));
+            return f.format(new Date(timestamp));
+        }
+    }
+
     public interface LoadCallback {
         void onLoaded(List<Entry> entries);
         void onError(String message);
@@ -67,6 +85,16 @@ public class HistoryStore {
 
     public interface SaveCallback {
         void onSaved();
+        void onError(String message);
+    }
+
+    public interface GameLoadCallback {
+        void onLoaded(List<Game> games);
+        void onError(String message);
+    }
+
+    public interface GameCreateCallback {
+        void onCreated(String gameId);
         void onError(String message);
     }
 
@@ -87,6 +115,7 @@ public class HistoryStore {
     public void save(String name, int tilesPlayed,
                       @Nullable List<List<String>> boardBefore, @Nullable List<String> handBefore,
                       @Nullable List<List<String>> boardAfter, @Nullable List<String> handRemaining,
+                      @Nullable String gameId,
                       SaveCallback callback) {
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
@@ -97,7 +126,7 @@ public class HistoryStore {
             callback.onError("יש להתחבר כדי לשמור היסטוריה");
             return;
         }
-        api.saveHistoryEntry(token, name, tilesPlayed, boardBefore, handBefore, boardAfter, handRemaining,
+        api.saveHistoryEntry(token, name, tilesPlayed, boardBefore, handBefore, boardAfter, handRemaining, gameId,
                 new AppApiClient.HistorySaveCallback() {
                     @Override
                     public void onSuccess() { callback.onSaved(); }
@@ -144,6 +173,82 @@ public class HistoryStore {
         api.renameHistoryEntry(token, entryId, newName, new AppApiClient.HistorySaveCallback() {
             @Override
             public void onSuccess() { callback.onSaved(); }
+
+            @Override
+            public void onFailure(String message) { callback.onError(message); }
+        });
+    }
+
+    /** Creates a new game on the server. See TurnSession.startNewGame(). */
+    public void createGame(String name, GameCreateCallback callback) {
+        String token = TurnSession.get().getAuthToken();
+        if (token == null) {
+            callback.onError("יש להתחבר כדי להתחיל משחק חדש");
+            return;
+        }
+        api.createGame(token, name, new AppApiClient.GameCreateCallback() {
+            @Override
+            public void onSuccess(AppApiClient.GameDto game) { callback.onCreated(game.id); }
+
+            @Override
+            public void onFailure(String message) { callback.onError(message); }
+        });
+    }
+
+    public void loadGames(GameLoadCallback callback) {
+        String token = TurnSession.get().getAuthToken();
+        if (token == null) {
+            callback.onLoaded(new ArrayList<>());
+            return;
+        }
+        api.getGames(token, new AppApiClient.GameListCallback() {
+            @Override
+            public void onSuccess(List<AppApiClient.GameDto> dtos) {
+                List<Game> games = new ArrayList<>(dtos.size());
+                for (AppApiClient.GameDto d : dtos) {
+                    games.add(new Game(d.id, d.name, d.timestamp));
+                }
+                callback.onLoaded(games);
+            }
+
+            @Override
+            public void onFailure(String message) { callback.onError(message); }
+        });
+    }
+
+    /** Renames an already-saved game. Server enforces that it belongs to this user. */
+    public void renameGame(String gameId, String newName, SaveCallback callback) {
+        String token = TurnSession.get().getAuthToken();
+        if (token == null) {
+            callback.onError("יש להתחבר כדי לשנות שם");
+            return;
+        }
+        api.renameGame(token, gameId, newName, new AppApiClient.HistorySaveCallback() {
+            @Override
+            public void onSuccess() { callback.onSaved(); }
+
+            @Override
+            public void onFailure(String message) { callback.onError(message); }
+        });
+    }
+
+    /** The turns saved inside one game. */
+    public void loadGameHistory(String gameId, LoadCallback callback) {
+        String token = TurnSession.get().getAuthToken();
+        if (token == null) {
+            callback.onLoaded(new ArrayList<>());
+            return;
+        }
+        api.getGameHistory(token, gameId, new AppApiClient.HistoryListCallback() {
+            @Override
+            public void onSuccess(List<AppApiClient.HistoryEntryDto> dtos) {
+                List<Entry> entries = new ArrayList<>(dtos.size());
+                for (AppApiClient.HistoryEntryDto d : dtos) {
+                    entries.add(new Entry(d.id, d.name, d.timestamp, d.tilesPlayed, d.boardImage,
+                            d.boardBefore, d.handBefore, d.boardAfter, d.handRemaining));
+                }
+                callback.onLoaded(entries);
+            }
 
             @Override
             public void onFailure(String message) { callback.onError(message); }

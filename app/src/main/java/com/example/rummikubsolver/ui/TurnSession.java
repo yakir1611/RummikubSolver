@@ -51,6 +51,20 @@ public final class TurnSession {
     // turn - guards against a second geometric run clobbering manual edits
     private boolean initialBoardGroupingDone = false;
 
+    // the game the current turn belongs to. Games are created lazily: HomeActivity's
+    // "new game" only remembers pendingGameName here; the game itself is only
+    // actually created server-side (and currentGameId set - see setCurrentGameId())
+    // by SolutionActivity when the FIRST turn is actually saved. That way a user who
+    // backs out before finishing a turn never leaves an empty game behind.
+    private String pendingGameName;
+    private String currentGameId;
+
+    // how many turns have been successfully saved in the current game so far -
+    // used to name the next one "תור מספר N" (see SolutionActivity.saveToHistory).
+    // Reset by startNewGame(), NOT by startNewTurn() - a new turn within the
+    // same game keeps counting up.
+    private int turnCount = 0;
+
     private String username = "";
 
     // set by LoginActivity after a successful register/login call, cleared
@@ -78,7 +92,49 @@ public final class TurnSession {
         return instance;
     }
 
-    /** Wipes the previous turn. Called when the user starts a new turn. */
+    /**
+     * Starts a brand-new game: remembers the default name to create it with
+     * once there's actually something to save (see setCurrentGameId()), resets
+     * the turn counter, and wipes any previous turn state. Every startNewTurn()
+     * after this, until the next startNewGame(), keeps accumulating under the
+     * same game.
+     */
+    public void startNewGame(String defaultName) {
+        this.pendingGameName = defaultName;
+        this.currentGameId = null;
+        this.turnCount = 0;
+        startNewTurn();
+    }
+
+    public String getPendingGameName() { return pendingGameName; }
+
+    public String getCurrentGameId() { return currentGameId; }
+
+    /** Called once, right after the first turn's save actually creates the game server-side. */
+    public void setCurrentGameId(String gameId) { this.currentGameId = gameId; }
+
+    /** The number to use for the NEXT turn's default name - see solution_turn_default_name. */
+    public int getNextTurnNumber() { return turnCount + 1; }
+
+    /** Called once a turn is actually saved successfully, so the next one gets the next number. */
+    public void incrementTurnCount() { turnCount++; }
+
+    /**
+     * Resumes an already-existing game (HomeActivity's "המשך משחק אחרון"):
+     * sets currentGameId directly, skipping the lazy create in startNewGame()/
+     * saveToHistory() since the game is already on the server, and seeds the
+     * turn counter with how many turns it already has, so the next one saved
+     * continues the numbering ("תור מספר N+1") instead of restarting at 1.
+     */
+    public void resumeGame(String gameId, int existingTurnCount) {
+        this.pendingGameName = null;
+        this.currentGameId = gameId;
+        this.turnCount = existingTurnCount;
+        startNewTurn();
+    }
+
+    /** Wipes the previous turn. Called when the user starts a new turn.
+     *  Does NOT touch currentGameId - a new turn within the same game keeps it. */
     public void startNewTurn() {
         recycleIfNeeded(boardPhoto);
         recycleIfNeeded(handPhoto);
@@ -144,6 +200,9 @@ public final class TurnSession {
         username = "";
         authToken = null;
         userId = null;
+        pendingGameName = null;
+        currentGameId = null;
+        turnCount = 0;
         historyBoardImage = null;
         historyBoardBefore = null;
         historyHandBefore = null;

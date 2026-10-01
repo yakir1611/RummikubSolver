@@ -14,7 +14,7 @@ import com.google.android.material.textfield.TextInputEditText;
 
 /**
  * Registration - its own screen now instead of sharing LoginActivity's form.
- * Reached only from the "משתמש חדש? הרשמה" link on the login screen;
+ * Reached only from the "New user? Sign up" link on the login screen;
  * always opens with empty fields since it's a fresh Activity instance.
  */
 public class RegisterActivity extends AppCompatActivity {

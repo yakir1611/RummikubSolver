@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- frame around the "after" sections (the solver's result) - brand color,
+     same one the "after" headings already use, so the frame reads as
+     "this is the result" at a glance -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <stroke
+        android:width="2dp"
+        android:color="@color/brand_primary" />
+    <corners android:radius="16dp" />
+</shape>

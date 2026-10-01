@@ -1,6 +1,6 @@
 // Same approach as authController.test.js: mock the Mongoose model calls,
 // run everything else for real. See that file's header comment for why
-// there's no real MongoDB connection in this sandbox.
+// there's no real MongoDB connection here.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -91,6 +91,42 @@ test('saveEntry: saves all four sections (board/hand before/after), and getHisto
     assert.deepEqual(listRes.body[0].handBefore, handBefore);
     assert.deepEqual(listRes.body[0].boardAfter, boardAfter);
     assert.deepEqual(listRes.body[0].handRemaining, handRemaining);
+});
+// saveEntry: gameId round-trips through save and fetch untouched, same as the four rendered sections
+test('saveEntry: saves the gameId, and getHistory returns it unchanged', async (t) => {
+    let captured;
+    t.mock.method(HistoryEntry, 'create', async (doc) => {
+        captured = doc;
+        return { ...doc, _id: 'entry1' };
+    });
+
+    const saveRes = fakeRes();
+    await saveEntry({
+        userId: 'u1',
+        body: { tilesPlayed: 3, gameId: 'game1' },
+    }, saveRes);
+
+    assert.equal(saveRes.statusCode, 201);
+    assert.equal(captured.gameId, 'game1');
+
+    t.mock.method(HistoryEntry, 'find', () => ({
+        sort() { return this; },
+        limit() { return Promise.resolve([{ ...captured, _id: 'entry1' }]); },
+    }));
+
+    const listRes = fakeRes();
+    await getHistory({ userId: 'u1' }, listRes);
+
+    assert.equal(listRes.body[0].gameId, 'game1');
+});
+// saveEntry: an entry saved without a gameId (old client, or a turn saved before games existed) still succeeds
+test('saveEntry: gameId is optional - a save without one still succeeds', async (t) => {
+    t.mock.method(HistoryEntry, 'create', async (doc) => ({ ...doc, _id: 'entry1' }));
+
+    const res = fakeRes();
+    await saveEntry({ userId: 'u1', body: { tilesPlayed: 1 } }, res);
+
+    assert.equal(res.statusCode, 201);
 });
 // getHistory filters by the authenticated user's id, sorts newest-first, and caps results at 50
 test('getHistory: queries by the authenticated user, sorted newest first, capped at 50', async (t) => {

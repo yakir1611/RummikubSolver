@@ -24,13 +24,17 @@
     <string name="home_new_game_sub">צלם את הלוח ואת היד שלך</string>
     <string name="home_history">היסטוריה</string>
     <string name="home_history_sub">המהלכים שנשמרו</string>
+    <string name="home_continue_game">המשך משחק אחרון</string>
+    <string name="home_continue_game_sub">הוספת תורות למשחק הפתוח האחרון שלך</string>
+    <string name="home_no_previous_game">אין משחק קודם להמשיך</string>
 
     <!-- capture -->
-    <string name="capture_title">צילום הלוח</string>
-    <string name="capture_step_board">שלב 1 מתוך 2: צלם את הלוח</string>
-    <string name="capture_step_hand">שלב 2 מתוך 2: צלם את היד שלך</string>
+    <string name="capture_title_board">צילום השולחן</string>
+    <string name="capture_title_hand">צילום התושבת</string>
+    <string name="capture_step_board">שלב 1 מתוך 2</string>
+    <string name="capture_step_hand">שלב 2 מתוך 2</string>
     <string name="capture_hint_board">ודא שכל האבנים על השולחן נראות בבירור</string>
-    <string name="capture_hint_hand">פרוס את האבנים שלך בשורה אחת, בלי חפיפה</string>
+    <string name="capture_hint_hand">צלם את התושבת שלך וודא שאין ברקע אריחים נוספים שאינם שייכים לה</string>
     <string name="capture_take_photo">צילום</string>
     <string name="capture_from_gallery">בחירה מהגלריה</string>
     <string name="capture_retake">צילום מחדש</string>
@@ -79,12 +83,17 @@
     <string name="solution_remaining">%1$d אבנים נותרו ביד</string>
     <string name="solution_none">לא נמצא מהלך אפשרי הפעם</string>
     <string name="solution_new_turn">תור חדש</string>
+    <string name="solution_turn_default_name">תור מספר %1$d</string>
+    <string name="solution_go_home">למסך הבית</string>
 
     <!-- history -->
     <string name="history_title">היסטוריית משחקים</string>
     <string name="history_empty">עדיין אין היסטוריה שמורה</string>
     <string name="history_entry_sub">%1$d אבנים הונחו</string>
     <string name="history_game_title">משחק %1$d</string>
+    <!-- fallback name for a game with no custom name (shouldn't normally
+         happen - HomeActivity always sends a date+time default) -->
+    <string name="history_game_fallback">משחק %1$d</string>
     <string name="cd_rename_entry">שינוי שם למהלך</string>
     <string name="history_rename_title">שינוי שם</string>
     <string name="history_rename_error">שגיאה בשינוי השם</string>
