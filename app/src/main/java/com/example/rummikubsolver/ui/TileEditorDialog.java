@@ -69,6 +69,7 @@ final class TileEditorDialog {
         }
         // React whenever the user picks a different color radio button.
         groupColor.setOnCheckedChangeListener((g, checkedId) -> {
+            if (checkedId == -1) return;
             pickedColor[0] = colorForRadio(checkedId);
             pickedJoker[0] = false;
             updateNumberLabel(btnNumber, pickedNumber[0], pickedJoker[0]);
