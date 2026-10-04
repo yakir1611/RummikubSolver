@@ -8,6 +8,7 @@ import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
@@ -331,13 +332,28 @@ public class ReviewActivity extends AppCompatActivity {
         });
     }
 
-    /** Adds a brand-new default board tile and immediately opens the editor on it. */
+    /** Asks where the new tile goes (board / hand), then creates it and opens the editor. */
     private void addNewTile() {
-        // Ask the session to create and register a new default board tile.
-        DetectedTile newTile = TurnSession.get().addManualBoardTile();
+        // Let the user choose the destination - the FAB used to always add to the board.
+        String[] options = {
+                getString(R.string.review_add_to_board),
+                getString(R.string.review_add_to_hand)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.review_add_where)
+                .setItems(options, (d, which) -> {
+                    DetectedTile newTile = (which == 0)
+                            ? TurnSession.get().addManualBoardTile()
+                            : TurnSession.get().addManualHandTile();
+                    openEditorForNewTile(newTile);
+                })
+                .show();
+    }
+
+    /** Opens the editor on a just-created tile; cancel/delete discards it so no stray default is left. */
+    private void openEditorForNewTile(DetectedTile newTile) {
         // Get the set indices already in use, so the editor can offer valid choices.
         List<Integer> usedIndices = TurnSession.get().getUsedBoardSetIndices();
-        // Show the editor dialog for the new tile.
         TileEditorDialog.show(this, newTile, usedIndices, new TileEditorDialog.Listener() {
             @Override
             public void onSaved() {

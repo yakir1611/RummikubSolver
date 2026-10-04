@@ -316,6 +316,20 @@ public final class TurnSession {
         return tile;
     }
 
+    /**
+     * Creates a brand-new HAND tile with placeholder defaults (1, black), adds it
+     * to detections, and returns it so the caller can open the editor on it right
+     * away. Hand tiles have no board-set concept, so no boardSetIndex is stamped.
+     * Not user-verified yet - same contract as addManualBoardTile().
+     */
+    public DetectedTile addManualHandTile() {
+        String id = "manual-hand-" + detections.size() + "-" + System.nanoTime();
+        DetectedTile tile = new DetectedTile(id, 1, Tile.Color.BLACK, false, 1.0f,
+                new BoundingBox(0f, 0f, 0f, 0f), DetectedTile.Source.HAND);
+        detections.add(tile);
+        return tile;
+    }
+
     /** Board + Hand built from the current state - no geometry re-run. */
     public static final class GameState {
         public final Board board;

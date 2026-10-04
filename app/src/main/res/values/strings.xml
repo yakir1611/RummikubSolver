@@ -59,6 +59,9 @@
     <string name="review_unassigned">לא משויך לאף סט</string>
     <string name="review_solve">מצא פתרון</string>
     <string name="review_solve_blocked">יש לתקן את השגיאות לפני חיפוש פתרון</string>
+    <string name="review_add_where">להוסיף אבן ל…</string>
+    <string name="review_add_to_board">הלוח</string>
+    <string name="review_add_to_hand">היד שלי</string>
 
     <!-- tile editor dialog -->
     <string name="editor_title">עריכת אבן</string>
