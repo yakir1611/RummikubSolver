@@ -20,9 +20,20 @@ val localProperties = Properties().apply {
         localPropertiesFile.inputStream().use { load(it) }
     }
 }
+//val serverHost: String? = localProperties.getProperty("app.server.host")
+//val appServerUrl = "http://${serverHost ?: "localhost"}:3000/"
+//val detectionServerUrl = "http://${serverHost ?: "127.0.0.1"}:8001/detect"
 val serverHost: String? = localProperties.getProperty("app.server.host")
-val appServerUrl = "http://${serverHost ?: "localhost"}:3000/"
-val detectionServerUrl = "http://${serverHost ?: "127.0.0.1"}:8001/detect"
+
+// Two candidates per server instead of one. The app tries the USB one first
+// (works only when adb reverse actually forwarded the port at build+install
+// time) and falls back to the Wi-Fi one automatically at runtime if that
+// fails - see AppApiClient/DetectionClient. So a cable being plugged in or
+// not just works, no rebuild needed either way.
+val appServerUrlUsb = "http://localhost:3000/"
+val detectionServerUrlUsb = "http://127.0.0.1:8001/detect"
+val appServerUrlWifi = "http://${serverHost ?: "localhost"}:3000/"
+val detectionServerUrlWifi = "http://${serverHost ?: "127.0.0.1"}:8001/detect"
 
 android {
     namespace = "com.example.rummikubsolver"
@@ -38,8 +49,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 
-        buildConfigField("String", "APP_SERVER_URL", "\"$appServerUrl\"")
-        buildConfigField("String", "DETECTION_SERVER_URL", "\"$detectionServerUrl\"")
+        //buildConfigField("String", "APP_SERVER_URL", "\"$appServerUrl\"")
+        //buildConfigField("String", "DETECTION_SERVER_URL", "\"$detectionServerUrl\"")
+        buildConfigField("String", "APP_SERVER_URL_USB", "\"$appServerUrlUsb\"")
+        buildConfigField("String", "DETECTION_SERVER_URL_USB", "\"$detectionServerUrlUsb\"")
+        buildConfigField("String", "APP_SERVER_URL_WIFI", "\"$appServerUrlWifi\"")
+        buildConfigField("String", "DETECTION_SERVER_URL_WIFI", "\"$detectionServerUrlWifi\"")
     }
 
     buildFeatures {

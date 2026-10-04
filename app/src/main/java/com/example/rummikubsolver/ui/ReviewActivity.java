@@ -51,6 +51,7 @@ public class ReviewActivity extends AppCompatActivity {
     private FloatingActionButton fabAddTile;
 
     // tiles inside a group that failed isValid(), so we can outline them in red
+    // Set of detection ids currently flagged as part of an invalid group.
     private final Set<String> invalidGroupTileIds = new HashSet<>();
     private boolean boardValid;
 
@@ -68,11 +69,12 @@ public class ReviewActivity extends AppCompatActivity {
         btnSolve = findViewById(R.id.btnSolve);
         fabAddTile = findViewById(R.id.fabAddTile);
 
-        // one-time geometric pass - after this, set membership lives on the tiles
+        // Run the geometric clustering pass exactly once, stamping each board tile's set index.
         TurnSession.get().applyInitialBoardGrouping();
-
+        // Tapping Solve navigates to the solution screen.
         btnSolve.setOnClickListener(v ->
                 startActivity(new Intent(this, SolutionActivity.class)));
+        // Tapping the FAB adds and opens the editor for a brand-new tile.
         fabAddTile.setOnClickListener(v -> addNewTile());
 
         refresh();
@@ -80,46 +82,59 @@ public class ReviewActivity extends AppCompatActivity {
 
     /** Re-checks validity of the current groups and redraws everything. No geometry re-run. */
     private void refresh() {
+        // Groups of board tiles, keyed by their set index, kept in ascending order.
         Map<Integer, List<DetectedTile>> bySetIndex = new TreeMap<>();
+        // Board tiles that have no set index at all.
         List<DetectedTile> unassigned = new ArrayList<>();
+        // Walk through every detection in the session.
         for (DetectedTile d : TurnSession.get().getDetections()) {
+            // Skip anything that isn't a board tile (hand tiles are handled separately).
             if (d.getSource() != DetectedTile.Source.BOARD) continue;
+            // Read this tile's current set index (maybe null).
             Integer idx = d.getBoardSetIndex();
+            // No index - it's unassigned.
             if (idx == null) unassigned.add(d);
+            // Otherwise, add it to its group's list (creating the group list on first use).
             else bySetIndex.computeIfAbsent(idx, k -> new ArrayList<>()).add(d);
         }
 
         invalidGroupTileIds.clear();
         List<ReviewWarning> warnings = new ArrayList<>();
-
+        // Check every group's validity.
         for (List<DetectedTile> group : bySetIndex.values()) {
+            // Group failed validity - flag all its tiles and add a blocking warning.
             if (!isGroupValid(group)) {
+                // Mark every tile in this invalid group so they get outlined.
                 for (DetectedTile d : group) invalidGroupTileIds.add(d.getDetectionId());
+                // Add a blocking warning describing the problem.
                 warnings.add(new ReviewWarning(true,
                         "יש קבוצה של " + group.size() + " אבנים שלא מרכיבה סט חוקי. "
                                 + "בדקו שהמספרים והצבעים זוהו נכון."));
             }
         }
+        // Any tiles with no group at all also block solving.
         if (!unassigned.isEmpty()) {
             warnings.add(new ReviewWarning(true,
                     "נמצאו " + unassigned.size() + " אבנים שלא משתייכות לאף סט. "
                             + "אולי הן רחוקות מדי בתמונה, או שהן שייכות לסט שכן."));
         }
+        // Count tiles the model flagged as low-confidence, across board and hand.
         int lowConfidenceCount = countLowConfidence();
+        // If there are any, add a non-blocking informational warning.
         if (lowConfidenceCount > 0) {
             warnings.add(new ReviewWarning(false,
                     lowConfidenceCount + " אבנים זוהו בביטחון נמוך. כדאי לוודא שהן נכונות."));
         }
-
+        // The board is solvable only if there are no invalid groups and no unassigned tiles.
         boardValid = invalidGroupTileIds.isEmpty() && unassigned.isEmpty();
-
+        // Redraw every part of the screen based on the fresh state.
         drawSummary();
         drawWarnings(warnings);
         drawBoard(bySetIndex, unassigned);
         drawHand();
         updateSolveButton();
     }
-
+    // Counts how many detections (board or hand) are flagged as needing manual review.
     private int countLowConfidence() {
         int count = 0;
         for (DetectedTile d : TurnSession.get().getDetections()) {
@@ -128,26 +143,23 @@ public class ReviewActivity extends AppCompatActivity {
         return count;
     }
 
-    /**
-     * A group is valid if every tile in it converts cleanly (guards the
-     * toTile() edge case where a tile ends up with no number, no color, and
-     * isn't a joker - e.g. after toggling the joker switch on then off in
-     * the editor without picking a value) and the resulting RummiSet is legal.
-     */
+    // Checks whether one group of detected tiles forms a legal RummiSet.
     private boolean isGroupValid(List<DetectedTile> group) {
         List<Tile> tiles = new ArrayList<>(group.size());
         int fakeId = 0;
         for (DetectedTile d : group) {
-            if (!convertible(d)) return false; // toTile() would throw - treat the group as invalid instead
+            if (!convertible(d)) return false;
             tiles.add(d.toTile(fakeId++));
         }
+        // Build a RummiSet from the converted tiles and check its own validity rules.
         return new RummiSet(tiles).isValid();
     }
-
+    // Checks whether a detection has enough information to safely convert into a Tile.
     private boolean convertible(DetectedTile d) {
+        // Either it's a joker, or it has both a number and a color.
         return d.isJoker() || (d.getNumber() != null && d.getColor() != null);
     }
-
+    // Updates the top summary text with current board/hand tile counts.
     private void drawSummary() {
         int boardCount = 0, handCount = 0;
         for (DetectedTile t : TurnSession.get().getDetections()) {
@@ -156,38 +168,42 @@ public class ReviewActivity extends AppCompatActivity {
         }
         textSummary.setText(getString(R.string.review_summary, boardCount, handCount));
     }
-
+    // Rebuilds the warnings list UI from the given warnings.
     private void drawWarnings(List<ReviewWarning> warnings) {
         warningsContainer.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
-
+        // Build one row per warning.
         for (ReviewWarning w : warnings) {
             View row = inflater.inflate(R.layout.item_warning, warningsContainer, false);
             TextView title = row.findViewById(R.id.textWarningTitle);
             TextView message = row.findViewById(R.id.textWarningMessage);
             View stripe = row.findViewById(R.id.warningStripe);
-
+            // Pick the row's background drawable based on whether it blocks solving.
             row.setBackgroundResource(w.blocking
                     ? R.drawable.bg_warning_blocking
                     : R.drawable.bg_warning_info);
+            // Color the side stripe to match the warning's severity.
             stripe.setBackgroundColor(ContextCompat.getColor(this,
                     w.blocking ? R.color.warn_blocking : R.color.warn_info));
+            // Set the title text to the matching "blocking"/"info" prefix string.
             title.setText(w.blocking
                     ? R.string.warning_blocking_prefix
                     : R.string.warning_info_prefix);
+            // Color the title text to match the severity too.
             title.setTextColor(ContextCompat.getColor(this,
                     w.blocking ? R.color.warn_blocking : R.color.text_primary));
             message.setText(w.message);
-
+            // Add the finished row to the warnings container.
             warningsContainer.addView(row);
         }
     }
-
+    // Rebuilds the board section UI: one block per valid/invalid group, plus the unassigned block.
     private void drawBoard(Map<Integer, List<DetectedTile>> bySetIndex, List<DetectedTile> unassigned) {
         boardContainer.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
 
         int label = 1;
+        // Build one block per group, in ascending set-index order.
         for (List<DetectedTile> group : bySetIndex.values()) {
             View block = inflater.inflate(R.layout.item_set_block, boardContainer, false);
             TextView setLabel = block.findViewById(R.id.textSetLabel);
@@ -195,21 +211,27 @@ public class ReviewActivity extends AppCompatActivity {
 
             setLabel.setText(getString(R.string.review_set_label, label++));
             grid.setColumnCount(Math.max(1, group.size()));
-
+            // Compute this group's display order (numeric sort, jokers/nulls last).
             List<DetectedTile> displayOrder = new ArrayList<>(sortedForDisplay(group));
             Collections.reverse(displayOrder);
+            // Add one TileView per tile in that order.
             for (DetectedTile d : displayOrder) {
+                // Create a new tile widget.
                 TileView tv = new TileView(this);
+                // Bind this detection's data into it.
                 tv.bind(d);
+                // Flag it visually if it's part of an invalid group, or needs manual review.
                 if (invalidGroupTileIds.contains(d.getDetectionId()) || d.needsManualReview()) {
                     tv.setState(TileView.State.WARNING);
                 }
+                // Tapping a tile opens its editor.
                 tv.setOnClickListener(v -> openEditor(d));
                 grid.addView(tv);
             }
 
             // whole-block red outline when the group itself is an invalid set -
-            // same drawable drawUnassigned() already uses for its own block
+            // same drawable drawUnassigned() already uses for its own block.
+            // Check whether any tile in this group was flagged invalid.
             boolean groupInvalid = false;
             for (DetectedTile d : group) {
                 if (invalidGroupTileIds.contains(d.getDetectionId())) {
@@ -217,6 +239,7 @@ public class ReviewActivity extends AppCompatActivity {
                     break;
                 }
             }
+            // If so, outline the whole block in red.
             if (groupInvalid) {
                 block.setBackgroundResource(R.drawable.bg_set_container_invalid);
             }
@@ -232,20 +255,24 @@ public class ReviewActivity extends AppCompatActivity {
         if (unassigned.isEmpty()) return;
 
         View block = LayoutInflater.from(this).inflate(R.layout.item_set_block, boardContainer, false);
+        // Always outline this block in red - unassigned tiles are always a problem.
         block.setBackgroundResource(R.drawable.bg_set_container_invalid);
         ((TextView) block.findViewById(R.id.textSetLabel)).setText(R.string.review_unassigned);
         GridLayout row = block.findViewById(R.id.setTiles);
         row.setColumnCount(6);
-
+        // Compute the display order for the unassigned tiles too.
         List<DetectedTile> displayOrder = new ArrayList<>(sortedForDisplay(unassigned));
         Collections.reverse(displayOrder);
+        // Add one TileView per unassigned tile.
         for (DetectedTile d : displayOrder) {
             TileView tv = new TileView(this);
             tv.bind(d);
             tv.setState(TileView.State.WARNING);
+            // Tapping a tile opens its editor.
             tv.setOnClickListener(v -> openEditor(d));
             row.addView(tv);
         }
+        // Add the finished block to the board container.
         boardContainer.addView(block);
     }
 
@@ -260,18 +287,20 @@ public class ReviewActivity extends AppCompatActivity {
             if (d.getNumber() != null) numbered.add(d);
             else rest.add(d);
         }
+        // Sort the numbered tiles ascending by their value.
         numbered.sort(Comparator.comparingInt(DetectedTile::getNumber));
-
+        // Build the final order: sorted numbers first, then everything else as-is.
         List<DetectedTile> result = new ArrayList<>(numbered);
         result.addAll(rest);
         return result;
     }
-
+    // Rebuilds the hand section UI from the current detections.
     private void drawHand() {
         handContainer.removeAllViews();
         handContainer.setColumnCount(6);
-
+        // Walk through every detection in the session.
         for (DetectedTile d : TurnSession.get().getDetections()) {
+            // Skip anything that isn't a hand tile.
             if (d.getSource() != DetectedTile.Source.HAND) continue;
             TileView tv = new TileView(this);
             tv.bind(d);
@@ -280,7 +309,7 @@ public class ReviewActivity extends AppCompatActivity {
             handContainer.addView(tv);
         }
     }
-
+    // Opens the tile editor dialog for an existing detected tile.
     private void openEditor(DetectedTile tile) {
         List<Integer> usedIndices = TurnSession.get().getUsedBoardSetIndices();
         TileEditorDialog.show(this, tile, usedIndices, new TileEditorDialog.Listener() {
@@ -304,8 +333,11 @@ public class ReviewActivity extends AppCompatActivity {
 
     /** Adds a brand-new default board tile and immediately opens the editor on it. */
     private void addNewTile() {
+        // Ask the session to create and register a new default board tile.
         DetectedTile newTile = TurnSession.get().addManualBoardTile();
+        // Get the set indices already in use, so the editor can offer valid choices.
         List<Integer> usedIndices = TurnSession.get().getUsedBoardSetIndices();
+        // Show the editor dialog for the new tile.
         TileEditorDialog.show(this, newTile, usedIndices, new TileEditorDialog.Listener() {
             @Override
             public void onSaved() {
@@ -324,12 +356,12 @@ public class ReviewActivity extends AppCompatActivity {
             }
         });
     }
-
+    // Removes a just-created (and not confirmed) tile and refreshes the screen.
     private void discardNewTile(DetectedTile tile) {
         TurnSession.get().getDetections().remove(tile);
         refresh();
     }
-
+    // Updates the Solve button and status banner based on whether the board is currently valid.
     private void updateSolveButton() {
         btnSolve.setEnabled(boardValid);
         btnSolve.setText(boardValid ? R.string.review_solve : R.string.review_solve_blocked);

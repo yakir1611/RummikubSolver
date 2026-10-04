@@ -22,14 +22,16 @@ import java.util.TreeSet;
 /**
  * Holds everything about the turn the user is currently working on.
  *
- * Why a singleton and not Intent extras: we pass bitmaps and long lists of
- * DetectedTile between screens. Intents have a ~1MB limit and would crash
- * (TransactionTooLargeException) on a full-res photo, and DetectedTile is
- * mutable - the review screen edits the same objects the assembler will read.
+ * App-wide singleton holding all mutable state for the turn currently in progress
+ * (photos, raw tile detections, game/user identity, history-view snapshot).
+ * It exists so screens can share this data without passing it through Intents,
+ * which have a strict size limit that a full-res photo or a long tile list would blow past.
  *
- * Lives only while the app is in memory. If Android kills the process
- * mid-turn the session is gone, and CaptureActivity starts fresh - which is
- * the right behaviour anyway, the photos are gone too.
+ * Its two main jobs: (1) run the one-time geometric grouping pass (applyInitialBoardGrouping)
+ * that stamps each board DetectedTile with the set index it belongs to,
+ * matching BoardAssembler's freshly-built Tile objects back to the original detections via findUnconsumedMatch;
+ * and (2) rebuild a solver-ready Board+Hand (buildCurrentGameState) directly from those stamped indices,
+ * with no further geometry involved — so later screens always reflect whatever the user has since edited.
  */
 public final class TurnSession {
 
@@ -49,6 +51,7 @@ public final class TurnSession {
 
     // true once applyInitialBoardGrouping() has stamped boardSetIndex for this
     // turn - guards against a second geometric run clobbering manual edits
+    // Flag starts false - no grouping pass has run yet for this turn.
     private boolean initialBoardGroupingDone = false;
 
     // the game the current turn belongs to. Games are created lazily: HomeActivity's
@@ -56,33 +59,33 @@ public final class TurnSession {
     // actually created server-side (and currentGameId set - see setCurrentGameId())
     // by SolutionActivity when the FIRST turn is actually saved. That way a user who
     // backs out before finishing a turn never leaves an empty game behind.
+
+    // Name chosen for a not-yet-created game, pending its first saved turn.
     private String pendingGameName;
+    // Server-assigned id of the current game, once it actually exists.
     private String currentGameId;
 
-    // how many turns have been successfully saved in the current game so far -
-    // used to name the next one "תור מספר N" (see SolutionActivity.saveToHistory).
-    // Reset by startNewGame(), NOT by startNewTurn() - a new turn within the
-    // same game keeps counting up.
+    // how many turns have been successfully saved in the current game so far.
     private int turnCount = 0;
-
+    // Display name of the currently logged-in user, empty when logged out.
     private String username = "";
 
-    // set by LoginActivity after a successful register/login call, cleared
+    // set after a successful register/login call, cleared
     // on logout. Every history request needs this - it's how the server
     // knows which user is asking (see AppApiClient, requireAuth on the
-    // server side). Not persisted to disk: same lifetime as username above,
-    // so a killed process means logging in again, which matches how the
-    // rest of the session already behaves.
+    // server side).
+    // JWT/session token proving who the current user is.
     private String authToken;
     private String userId;
-
-    // set by HistoryActivity right before opening HistoryDetailActivity - same
-    // non-persisted, Intent-too-large-avoidance pattern as boardPhoto above.
-    // Cleared on logout so a later, different account can't see a stale entry.
+    // Base64 (or similar) encoded board photo for the history entry being viewed.
     private String historyBoardImage;
+    // Board sets ("before" state) of the history turn being viewed, as tile-code rows.
     private List<List<String>> historyBoardBefore;
+    // Hand tiles ("before" state) of the history turn being viewed, as tile codes.
     private List<String> historyHandBefore;
+    // Board sets ("after" state) of the history turn being viewed, as tile-code rows.
     private List<List<String>> historyBoardAfter;
+    // Hand tiles remaining ("after" state) of the history turn being viewed.
     private List<String> historyHandRemaining;
 
     private TurnSession() {}
@@ -110,19 +113,18 @@ public final class TurnSession {
 
     public String getCurrentGameId() { return currentGameId; }
 
-    /** Called once, right after the first turn's save actually creates the game server-side. */
+    // Called once, right after the first turn's save actually creates the game server-side.
     public void setCurrentGameId(String gameId) { this.currentGameId = gameId; }
 
-    /** The number to use for the NEXT turn's default name - see solution_turn_default_name. */
+    // The number to use for the NEXT turn's default name - see solution_turn_default_name.
     public int getNextTurnNumber() { return turnCount + 1; }
 
-    /** Called once a turn is actually saved successfully, so the next one gets the next number. */
+    // Called once a turn is actually saved successfully, so the next one gets the next number.
     public void incrementTurnCount() { turnCount++; }
 
     /**
      * Resumes an already-existing game (HomeActivity's "המשך משחק אחרון"):
-     * sets currentGameId directly, skipping the lazy create in startNewGame()/
-     * saveToHistory() since the game is already on the server, and seeds the
+     * sets currentGameId directly and seeds the
      * turn counter with how many turns it already has, so the next one saved
      * continues the numbering ("תור מספר N+1") instead of restarting at 1.
      */
@@ -165,6 +167,7 @@ public final class TurnSession {
 
     public double getBoardAspect() { return boardAspect; }
 
+    // Returns the live, mutable list of all detections for this turn.
     public List<DetectedTile> getDetections() { return detections; }
 
     public void setDetections(List<DetectedTile> tiles) {
@@ -195,7 +198,7 @@ public final class TurnSession {
     public boolean isLoggedIn() {
         return authToken != null;
     }
-
+    // Clears all per-user and per-game state on logout.
     public void logout() {
         username = "";
         authToken = null;
@@ -344,6 +347,7 @@ public final class TurnSession {
 
         // TreeMap keeps sets in ascending boardSetIndex order - matches what
         // the review screen showed
+        // Groups board detections by their assigned set index, sorted ascending.
         Map<Integer, List<DetectedTile>> groups = new TreeMap<>();
         for (DetectedTile d : detections) {
             if (d.getSource() != DetectedTile.Source.BOARD) continue;
@@ -351,7 +355,7 @@ public final class TurnSession {
             if (index == null) continue; // unassigned tiles don't go to the solver
             groups.computeIfAbsent(index, k -> new ArrayList<>()).add(d);
         }
-
+        // Fresh, empty board to populate from the grouped board detections.
         Board board = new Board();
         for (List<DetectedTile> group : groups.values()) {
             if (!allConvertible(group)) continue; // guard - toTile() would throw otherwise
@@ -360,14 +364,14 @@ public final class TurnSession {
             RummiSet set = new RummiSet(tiles);
             if (set.isValid()) board.addSet(set);
         }
-
+        // Return the fully reconstructed board+hand pair.
         return new GameState(board, hand);
     }
-
+    // Returns true if a detection has enough info to become a real domain Tile.
     private static boolean convertible(DetectedTile d) {
         return d.isJoker() || (d.getNumber() != null && d.getColor() != null);
     }
-
+    // Returns true only if every detection in the group is individually convertible.
     private static boolean allConvertible(List<DetectedTile> group) {
         for (DetectedTile d : group) {
             if (!convertible(d)) return false;

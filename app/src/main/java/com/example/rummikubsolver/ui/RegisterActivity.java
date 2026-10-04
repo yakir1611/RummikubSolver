@@ -13,12 +13,14 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 
 /**
- * Registration - its own screen now instead of sharing LoginActivity's form.
- * Reached only from the "New user? Sign up" link on the login screen;
+ * Registration - Reached only from the "New user? Sign up" link on the login screen;
  * always opens with empty fields since it's a fresh Activity instance.
+ * Can return from this screen to the login screen.
+ * after pressing the register button there is a call for AppApiClient in order to make the HTTP request,
+ * after it returns succesfuly the user is transferred to HomeActivity screen.
  */
 public class RegisterActivity extends AppCompatActivity {
-
+    // The networking client this screen uses to call the register endpoint.
     private final AppApiClient api = new AppApiClient();
 
     private TextInputEditText username, password;
@@ -33,17 +35,18 @@ public class RegisterActivity extends AppCompatActivity {
         password = findViewById(R.id.inputPassword);
         btnRegister = findViewById(R.id.btnRegister);
         MaterialButton goToLogin = findViewById(R.id.btnGoToLogin);
-
+        // Tapping register validates and submits the form.
         btnRegister.setOnClickListener(v -> submit());
         // finish(), not a new Intent to LoginActivity - LoginActivity is
         // still sitting on the back stack right underneath this screen, so
         // finishing just reveals it again instead of creating a second copy
         goToLogin.setOnClickListener(v -> finish());
     }
-
+    // Validates the form and sends a registration request to the server.
     private void submit() {
         String u = username.getText() == null ? "" : username.getText().toString().trim();
         String p = password.getText() == null ? "" : password.getText().toString();
+        // Reject if either field is empty.
         if (TextUtils.isEmpty(u) || TextUtils.isEmpty(p)) {
             Toast.makeText(this, R.string.login_error_empty, Toast.LENGTH_SHORT).show();
             return;
@@ -58,13 +61,17 @@ public class RegisterActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.login_error_password_format, Toast.LENGTH_SHORT).show();
             return;
         }
-
+        // Disable the button to block double-submit while the request is in flight.
         btnRegister.setEnabled(false);
+        // Send the actual registration request to the server.
         api.register(u, p, new AppApiClient.AuthCallback() {
             @Override
             public void onSuccess(AppApiClient.AuthResult result) {
+                // Store the username, auth token, and user id into the shared session.
                 TurnSession.get().setSession(result.username, result.token, result.userId);
+                // Navigate to the home screen.
                 startActivity(new Intent(RegisterActivity.this, HomeActivity.class));
+                // Close this registration screen so back doesn't return to it.
                 finish();
             }
 

@@ -10,7 +10,7 @@ public class Board {
         this.sets = new ArrayList<>();
     }
 
-    // Copy constructor (Deep Copy)
+    // Copy constructor
     public Board(Board other) {
         this.sets = new ArrayList<>();
         for (RummiSet set : other.sets) {

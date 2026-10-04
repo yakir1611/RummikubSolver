@@ -19,26 +19,9 @@ import java.util.List;
 /**
  * Lets the user fix one tile: number, color, joker flag, board-set
  * assignment (board tiles only), or delete it entirely.
- *
- * The correct* setters also flip userVerified - so a tile the user touched
- * stops being flagged for review even if the model's confidence was low.
- * setBoardSetIndex is plain bookkeeping and doesn't touch userVerified (see
- * DetectedTile) - it's not a correction to the tile's identity.
- *
- * Number and joker share one picker (tap btnNumber -> AlertDialog.setItems,
- * 1-13 then "Joker" as the 14th item). This used to be a 13-button GridLayout
- * plus a separate joker switch; the grid's fixed 44dp boxes silently clipped
- * the digits to nothing (OutlinedButton's default style bakes in 24dp of
- * horizontal padding per side). A plain AlertDialog list sidesteps that whole
- * class of bug since Android's own list-item layout does the sizing, not us.
- *
- * Board-set assignment works the same way (tap btnSet -> AlertDialog.setItems)
- * and is hidden entirely for hand tiles, which have no board-set concept. The
- * list is built from usedBoardSetIndices and labeled by POSITION in that list
- * ("Set 1", "Set 2"...), not by the raw boardSetIndex value - ReviewActivity
- * labels its blocks by iteration position too, so this keeps the numbers in
- * sync once indices get sparse (after "+ New Set" or a set getting emptied
- * out). "Unassigned" and "+ New Set" are the last two items.
+ * ReviewActivity sends the specific tile (the player pressed on) to TileEditorDialog,
+ * then this file changed the tile and when apply is pressed this file writes the changes in the DetectedTile object.
+ * (after that ReviewActivity calls refresh and gets the correct fixed tile).
  */
 final class TileEditorDialog {
 
@@ -55,6 +38,7 @@ final class TileEditorDialog {
      * @param usedBoardSetIndices distinct board-set indices currently in use
      *                            (ascending) - see TurnSession.getUsedBoardSetIndices()
      */
+    // Builds and shows the editor dialog for one tile.
     static void show(Context context, DetectedTile tile, List<Integer> usedBoardSetIndices,
                       Listener listener) {
         View view = LayoutInflater.from(context).inflate(R.layout.dialog_edit_tile, null);
@@ -66,18 +50,24 @@ final class TileEditorDialog {
         MaterialButton btnDelete = view.findViewById(R.id.btnDeleteTile);
 
         // working copy - only written back to the tile if the user hits save
+        // Mutable holder for the currently-picked color, starting from the tile's existing value.
         final Tile.Color[] pickedColor = {tile.getColor()};
+        // Mutable holder for the currently-picked number.
         final Integer[] pickedNumber = {tile.getNumber()};
+        // Mutable holder for the currently-picked joker flag.
         final boolean[] pickedJoker = {tile.isJoker()};
+        // Mutable holder for the currently-picked board-set index.
         final Integer[] pickedSetIndex = {tile.getBoardSetIndex()};
         // set true by Save/Delete before they dismiss, so the dismiss listener below
         // can tell "closed without saving" apart from "closed because we saved/deleted"
         final boolean[] handled = {false};
 
         // --- color ---
+        // Pre-select the radio button matching the tile's current color, if it has one.
         if (pickedColor[0] != null) {
             groupColor.check(radioIdFor(pickedColor[0]));
         }
+        // React whenever the user picks a different color radio button.
         groupColor.setOnCheckedChangeListener((g, checkedId) -> {
             pickedColor[0] = colorForRadio(checkedId);
             pickedJoker[0] = false;
@@ -85,7 +75,9 @@ final class TileEditorDialog {
         });
 
         // --- number / joker - one picker list for both ---
+        // Set the number button's initial label from the tile's current state.
         updateNumberLabel(btnNumber, pickedNumber[0], pickedJoker[0]);
+        // Tapping the number button opens the combined number/joker picker.
         btnNumber.setOnClickListener(v -> {
             String[] items = new String[14];
             for (int n = 1; n <= 13; n++) items[n - 1] = String.valueOf(n);
@@ -103,12 +95,13 @@ final class TileEditorDialog {
                             pickedNumber[0] = which + 1;
                             pickedJoker[0] = false;
                         }
+                        // Refresh the number button's label to match the new selection.
                         updateNumberLabel(btnNumber, pickedNumber[0], pickedJoker[0]);
                     })
                     .show();
         });
 
-        // --- board set assignment - board tiles only, hand tiles hide the whole section ---
+        // Only board tiles have a set-assignment concept at all.
         if (tile.getSource() == DetectedTile.Source.BOARD) {
             updateSetLabel(context, btnSet, usedBoardSetIndices, pickedSetIndex[0]);
             btnSet.setOnClickListener(v -> {
@@ -137,10 +130,11 @@ final class TileEditorDialog {
                         })
                         .show();
             });
+            // Hand tiles have no board-set concept - hide the whole section.
         } else {
             setPickerSection.setVisibility(View.GONE);
         }
-
+        // Build the main editor dialog itself, with the custom body view and Save/Cancel buttons.
         AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(R.string.editor_title)
                 .setView(view)
@@ -156,15 +150,16 @@ final class TileEditorDialog {
         // also after the programmatic dismiss() calls from Save/Delete below) - handled[0]
         // is what tells those apart from a real cancel
         dialog.setOnDismissListener(d -> {
+            // Only treat it as a true cancel if neither Save nor Delete already handled it.
             if (!handled[0]) listener.onCancelled();
         });
-
+        // Delete button - removes the tile entirely.
         btnDelete.setOnClickListener(v -> {
             handled[0] = true;
             dialog.dismiss();
             listener.onDeleted();
         });
-
+        // Actually display the dialog.
         dialog.show();
     }
 
@@ -179,26 +174,22 @@ final class TileEditorDialog {
         }
     }
 
-    /**
-     * Shows the current set assignment as "Set N" (N = position in
-     * usedBoardSetIndices, same numbering ReviewActivity renders), or
-     * "Unassigned" if unassigned. A just-picked "+ New Set" value won't be in
-     * usedBoardSetIndices yet (that list is a snapshot from when the dialog
-     * opened) - it's always the newest/highest index, so it always lands at
-     * the last position, same as it will once saved and re-grouped.
-     */
+    // Updates the set button's text to reflect the current set assignment.
     private static void updateSetLabel(Context context, MaterialButton btnSet,
                                         List<Integer> usedBoardSetIndices, Integer setIndex) {
         if (setIndex == null) {
             btnSet.setText(R.string.editor_set_unassigned);
             return;
         }
+        // Find where this index sits within the snapshot list of used indices.
         int position = usedBoardSetIndices.indexOf(setIndex);
+        // If not found (a brand-new index from "+ New Set"), treat it as landing at the end.
         int displayPosition = position >= 0 ? position : usedBoardSetIndices.size();
         btnSet.setText(context.getString(R.string.review_set_label, displayPosition + 1));
     }
 
     /** Writes the picked values back through the correct* setters. */
+    // Applies all the picked working values onto the real DetectedTile.
     private static void apply(DetectedTile tile, boolean joker, Integer number, Tile.Color color,
                                Integer setIndex) {
         tile.setBoardSetIndex(setIndex);
@@ -212,7 +203,7 @@ final class TileEditorDialog {
         if (color != null) tile.correctColor(color);
         tile.confirmAsIs(); // user looked at it, stop flagging it
     }
-
+    // Maps a Tile.Color value to its corresponding radio button id.
     private static int radioIdFor(Tile.Color c) {
         switch (c) {
             case RED:    return R.id.radioRed;
@@ -222,7 +213,7 @@ final class TileEditorDialog {
             default:     return -1;
         }
     }
-
+    // Maps a checked radio button id back to its corresponding Tile.Color value.
     private static Tile.Color colorForRadio(int id) {
         if (id == R.id.radioRed)    return Tile.Color.RED;
         if (id == R.id.radioBlue)   return Tile.Color.BLUE;

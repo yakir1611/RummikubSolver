@@ -1,6 +1,4 @@
-// Register + login. Two separate endpoints (not "get or create") because the
-// Android LoginActivity already has separate Register/Login buttons -
-// we're matching that UI, not inventing a new flow.
+// Register + login.
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
@@ -48,10 +46,7 @@ async function register(req, res) {
         const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
         const user = await User.create({ username, passwordHash });
 
-        ////////////////////////////////////////////////
         console.log(`[auth] new user registered: ${user.username} (id: ${user._id})`);
-        //////////////////////////////////////////////////
-
         
         // logging the user in immediately after registering saves the app an
         // extra round trip - it doesn't have to call /login right after /register

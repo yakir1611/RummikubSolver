@@ -32,14 +32,14 @@ import java.util.List;
  * Two-step capture: board photo first, then hand photo.
  *
  * The same Activity handles both steps - it just swaps its texts and keeps a
- * 'step' field. Simpler than two near-identical Activities, and the back button
- * naturally takes you from the hand step back to the board step.
+ * 'step' field.
  *
  * After both photos are in, we send them to the model one after the other and
  * collect the DetectedTiles into the TurnSession, then move on to review.
  */
 public class CaptureActivity extends AppCompatActivity {
 
+    // The two phases this single Activity walks through, in order.
     private enum Step { BOARD, HAND }
 
     private Step step = Step.BOARD;
@@ -59,7 +59,7 @@ public class CaptureActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_capture);
-
+        // Bind every view field to its id in the layout.
         imagePreview = findViewById(R.id.imagePreview);
         textPlaceholder = findViewById(R.id.textPlaceholder);
         textStep = findViewById(R.id.textStep);
@@ -71,39 +71,52 @@ public class CaptureActivity extends AppCompatActivity {
         btnNext = findViewById(R.id.btnNext);
         loadingOverlay = findViewById(R.id.loadingOverlay);
 
+        // Set up the three ActivityResultLaunchers before any button can use them.
         registerLaunchers();
-
+        // Camera button: check/ask permission, then open the camera.
         btnCamera.setOnClickListener(v -> askCameraThenShoot());
+        // Gallery button: open the system image picker directly (no special permission needed here).
         btnGallery.setOnClickListener(v -> galleryLauncher.launch("image/*"));
+        // Next button: advance to the hand step, or trigger detection if we just finished the hand step.
         btnNext.setOnClickListener(v -> onNext());
 
+        // Initialize the screen's texts/buttons for the first step (board).
         showStep(Step.BOARD);
     }
 
+    // Registers all three ActivityResultLaunchers with their result-handling callbacks.
     private void registerLaunchers() {
         // TakePicturePreview gives a small thumbnail bitmap - plenty for the model
         // and it avoids the FileProvider + full-res-file dance entirely.
         cameraLauncher = registerForActivityResult(
+                // Built-in contract: opens the camera app, returns a small preview Bitmap (or null).
                 new ActivityResultContracts.TakePicturePreview(),
+                // Callback receives the Bitmap once the camera app returns.
                 bitmap -> {
+                    // Only accept it if the user actually took a photo (didn't cancel).
                     if (bitmap != null) setPhoto(bitmap);
                 });
 
         galleryLauncher = registerForActivityResult(
                 new ActivityResultContracts.GetContent(),
+                // Callback receives the picked image's Uri (or null if canceled).
                 uri -> {
+                    // Convert the Uri into an actual Bitmap before using it.
                     if (uri != null) setPhoto(loadBitmap(uri));
                 });
 
         permissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
+                // Callback receives true/false for whether the user granted the permission.
                 granted -> {
+                    // If granted, immediately proceed to open the camera.
                     if (granted) cameraLauncher.launch(null);
                     else Toast.makeText(this, R.string.capture_permission_needed,
                             Toast.LENGTH_LONG).show();
                 });
     }
 
+    // Opens the camera directly if we already have permission, otherwise asks for it first.
     private void askCameraThenShoot() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -113,6 +126,7 @@ public class CaptureActivity extends AppCompatActivity {
         }
     }
 
+    // Decodes a gallery Uri into a Bitmap, using the API-appropriate method.
     private Bitmap loadBitmap(Uri uri) {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -128,15 +142,18 @@ public class CaptureActivity extends AppCompatActivity {
         }
     }
 
+    // Called whenever a new photo (camera or gallery) is ready to show as the current candidate.
     private void setPhoto(Bitmap bmp) {
         if (bmp == null) return;
         currentPhoto = bmp;
+        // Show it in the preview ImageView.
         imagePreview.setImageBitmap(bmp);
         textPlaceholder.setVisibility(View.GONE);
         btnNext.setEnabled(true);
         btnCamera.setText(R.string.capture_retake);
     }
 
+    // Resets the screen's UI state and texts for the given step (BOARD or HAND).
     private void showStep(Step s) {
         step = s;
         currentPhoto = null;
@@ -144,7 +161,7 @@ public class CaptureActivity extends AppCompatActivity {
         textPlaceholder.setVisibility(View.VISIBLE);
         btnNext.setEnabled(false);
         btnCamera.setText(R.string.capture_take_photo);
-
+        // Branch the text content based on which step we just switched to.
         if (s == Step.BOARD) {
             textStep.setText(R.string.capture_step_board);
             textTitle.setText(R.string.capture_title_board);
@@ -157,15 +174,18 @@ public class CaptureActivity extends AppCompatActivity {
             btnNext.setText(R.string.capture_analyze);
         }
     }
-
+    // Handles a tap on the Next/Analyze button, depending on the current step.
     private void onNext() {
+        // Safety check - button should be disabled without a photo, but guard anyway.
         if (currentPhoto == null) return;
-
+        // On the board step, save the board photo and move on to the hand step.
         if (step == Step.BOARD) {
             TurnSession.get().setBoardPhoto(currentPhoto);
             showStep(Step.HAND);
         } else {
+            // On the hand step, save the hand photo and kick off detection for both photos.
             TurnSession.get().setHandPhoto(currentPhoto);
+            // Start sending both photos to the vision model.
             runDetection();
         }
     }
@@ -175,25 +195,29 @@ public class CaptureActivity extends AppCompatActivity {
      * the hand request - the client is async, so nesting the callbacks keeps the
      * order without blocking the UI thread.
      */
+    // Runs the board detection, then (inside its success callback) the hand detection.
     private void runDetection() {
         setLoading(true);
         TurnSession session = TurnSession.get();
         session.getDetections().clear();
-
+        // Create the service wrapper that actually talks to the detection backend.
         TileDetectionService service = new TileDetectionService(this);
 
         service.detect(session.getBoardPhoto(), DetectedTile.Source.BOARD,
                 new TileDetectionService.Callback() {
                     @Override
                     public void onSuccess(List<DetectedTile> boardTiles) {
+                        // Store the board's detected tiles into the session
                         session.addDetections(boardTiles);
-
+                        // Now that the board is done, chain the hand detection request.
                         service.detect(session.getHandPhoto(), DetectedTile.Source.HAND,
                                 new TileDetectionService.Callback() {
                                     @Override
                                     public void onSuccess(List<DetectedTile> handTiles) {
+                                        // Store the hand's detected tiles into the session too.
                                         session.addDetections(handTiles);
                                         setLoading(false);
+                                        // Move on to the review screen with all detections collected.
                                         goToReview();
                                     }
 
@@ -212,11 +236,12 @@ public class CaptureActivity extends AppCompatActivity {
                     }
                 });
     }
-
+    // Navigates to ReviewActivity once both sets of detections are ready.
     private void goToReview() {
         startActivity(new Intent(this, ReviewActivity.class));
     }
 
+    // Displays a dialog explaining the detection failure, with retry/cancel options.
     private void showError(String message) {
         new AlertDialog.Builder(this)
                 .setMessage(getString(R.string.capture_error, message))
@@ -225,6 +250,7 @@ public class CaptureActivity extends AppCompatActivity {
                 .show();
     }
 
+    // Toggles the loading overlay's visibility and refreshes its label text.
     private void setLoading(boolean loading) {
         loadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
         textLoading.setText(R.string.capture_analyzing);

@@ -25,7 +25,7 @@ import java.util.List;
  * The turns saved inside one game (see HistoryActivity, the games list this
  * screen is opened from). Same list/rename/loading behaviour HistoryActivity
  * itself had before games existed - just scoped to one gameId and reusing
- * its layout. Tapping a turn opens HistoryDetailActivity, unchanged.
+ * its layout. Tapping a turn opens HistoryDetailActivity.
  */
 public class GameHistoryActivity extends AppCompatActivity {
 
@@ -52,16 +52,20 @@ public class GameHistoryActivity extends AppCompatActivity {
         recycler = findViewById(R.id.recyclerHistory);
         empty = findViewById(R.id.textEmpty);
         progress = findViewById(R.id.progressHistory);
+        // Tell the RecyclerView to lay its rows out as a simple vertical list.
         recycler.setLayoutManager(new LinearLayoutManager(this));
-
+        // Kick off loading this game's turn history.
         loadHistory();
     }
 
+    // Fetches this game's history entries and updates the UI once they arrive.
     private void loadHistory() {
         showLoading();
+        // Ask the shared history store for just this game's entries.
         HistoryStore.get().loadGameHistory(gameId, new HistoryStore.LoadCallback() {
             @Override
             public void onLoaded(List<HistoryStore.Entry> entries) {
+                // If there are no turns yet, show the "empty" message instead of a list.
                 if (entries.isEmpty()) {
                     showMessage(getString(R.string.history_empty));
                     return;
@@ -79,12 +83,14 @@ public class GameHistoryActivity extends AppCompatActivity {
         });
     }
 
+    // Puts the screen into its "loading" visual state.
     private void showLoading() {
         progress.setVisibility(View.VISIBLE);
         empty.setVisibility(View.GONE);
         recycler.setVisibility(View.GONE);
     }
 
+    // Puts the screen into a "message instead of list" state (used for both empty and error cases).
     private void showMessage(String text) {
         progress.setVisibility(View.GONE);
         recycler.setVisibility(View.GONE);
@@ -94,6 +100,7 @@ public class GameHistoryActivity extends AppCompatActivity {
 
     /** Plain text-input dialog to rename one turn; reloads the list on success. */
     private void showRenameDialog(HistoryStore.Entry entry) {
+        // Plain text field that will hold the new name.
         EditText input = new EditText(this);
         input.setText(entry.name);
         if (entry.name != null) input.setSelection(entry.name.length());
@@ -105,6 +112,7 @@ public class GameHistoryActivity extends AppCompatActivity {
                     String newName = input.getText() == null ? "" : input.getText().toString().trim();
                     if (TextUtils.isEmpty(newName)) return;
                     HistoryStore.get().rename(entry.id, newName, new HistoryStore.SaveCallback() {
+                        // Called once the rename is saved successfully.
                         @Override
                         public void onSaved() {
                             loadHistory(); // refresh so the new name shows immediately
@@ -119,7 +127,7 @@ public class GameHistoryActivity extends AppCompatActivity {
                 .setNegativeButton(R.string.editor_cancel, null)
                 .show();
     }
-
+    // RecyclerView adapter that turns the list of entries into rows on screen.
     private class Adapter extends RecyclerView.Adapter<Adapter.Holder> {
 
         private final List<HistoryStore.Entry> items;
@@ -128,6 +136,7 @@ public class GameHistoryActivity extends AppCompatActivity {
             this.items = items;
         }
 
+        // Creates a new row view (called only when the RecyclerView needs a fresh one, not per-bind).
         @NonNull
         @Override
         public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -135,36 +144,37 @@ public class GameHistoryActivity extends AppCompatActivity {
                     .inflate(R.layout.item_history, parent, false);
             return new Holder(v);
         }
-
+        // Fills one already-created row view with this position's data.
         @Override
         public void onBindViewHolder(@NonNull Holder holder, int position) {
             HistoryStore.Entry e = items.get(position);
             // server returns entries newest-first, so the oldest (last in the
             // list) is turn 1, ascending regardless of display order - used
-            // both as a fallback title and as HistoryDetailActivity's title,
-            // exactly as HistoryActivity did before games existed
+            // both as a fallback title and as HistoryDetailActivity's title.
             int gameNumber = items.size() - position;
 
             holder.name.setText(e.name != null ? e.name : getString(R.string.history_game_title, gameNumber));
             holder.date.setText(e.formattedDate());
             holder.sub.setVisibility(View.VISIBLE);
             holder.sub.setText(getString(R.string.history_entry_sub, e.tilesPlayed));
-
+            // Tapping the rename icon opens the rename dialog for this entry.
             holder.renameButton.setOnClickListener(v -> showRenameDialog(e));
 
             boolean hasDetail = e.boardImage != null
                     || (e.boardAfter != null && !e.boardAfter.isEmpty());
             if (hasDetail) {
+                // Tapping the row loads this entry's snapshot into TurnSession and opens the detail screen.
                 holder.itemView.setOnClickListener(v -> {
                     TurnSession.get().setHistoryBoardImage(e.boardImage);
                     TurnSession.get().setHistoryBoardBefore(e.boardBefore);
                     TurnSession.get().setHistoryHandBefore(e.handBefore);
                     TurnSession.get().setHistoryBoardAfter(e.boardAfter);
                     TurnSession.get().setHistoryHandRemaining(e.handRemaining);
-
+                    // Build the Intent to open the detail screen
                     Intent intent = new Intent(GameHistoryActivity.this, HistoryDetailActivity.class);
                     intent.putExtra(HistoryDetailActivity.EXTRA_GAME_NUMBER, gameNumber);
                     intent.putExtra(HistoryDetailActivity.EXTRA_DATE, e.formattedDate());
+                    // Actually navigate to the detail screen.
                     startActivity(intent);
                 });
             } else {

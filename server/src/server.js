@@ -18,7 +18,7 @@ async function main() {
 }
 
 main().catch((err) => {
-    // if Mongo isn't reachable or JWT_SECRET is missing, fail loudly at
+    // if Mongo isn't reachable, fail loudly at
     // startup instead of limping along and throwing on the first request
     console.error('[server] failed to start:', err);
     process.exit(1);

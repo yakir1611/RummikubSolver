@@ -5,50 +5,46 @@ import java.util.List;
 
 public class GreedySolver {
     /**
-     * Main entry point for the solver.
-     * Tries to make a move in the following priority order:
-     * 1. Play full sets directly from hand.
-     * 2. Steal a tile from the board (from ends or middle) to complete a pair from hand.
-     * 3. Add a single tile to an existing set on the board.
+     * main entry point for the solver, tries to make a move in this priority order
+     * 1. play full sets straight from the hand
+     * 2. steal a tile from the board from an end or the middle to finish a pair from the hand
+     * 3. add one tile to a set that is already on the board
      */
     public boolean makeMove(Board board, Hand hand) {
         boolean madeProgress = false;
-        // Step 1: Try to play complete sets from the hand
+        // 1. Try to play complete sets from the hand
         while (playNewSetFromHand(board, hand)) {
             madeProgress = true;
         }
-        // Step 2: Try to steal a tile from the board to complete a pair
+        // 2. Try to steal a tile from the board to complete a pair
         while (playSmartPairTheft(board, hand)) {
             madeProgress = true;
         }
-        // Step 3: Try to add single tiles to existing sets
+        // 3. Try to add single tiles to existing sets
         while (addSingleTileToExistingSet(board, hand)) {
             madeProgress = true;
         }
         return madeProgress;
     }
 
-    // Step 1: play full sets from hand
 
     /**
-     * Step 1: Checks for Runs first, then Groups.
+     * step 1 check for RUNS first then GROUPS
      */
     private boolean playNewSetFromHand(Board board, Hand hand) {
-        // Priority 1: Runs (e.g., 3, 4, 5 of same color)
+        // first priority RUNS
         if (findAndPlayRun(board, hand)) return true;
-
-        // Priority 2: Groups (e.g., 7, 7, 7 of different colors)
-        if (findAndPlayGroup(board, hand)) return true;
-
-        return false;
+        // second priority GROUPS
+        return findAndPlayGroup(board, hand);
     }
 
     /**
-     * Scans the hand to find and play valid Run sets (Same color, consecutive values).
+     * scans the hand to find and play valid RUN sets a RUN is the same color with values in a row
      */
     private boolean findAndPlayRun(Board board, Hand hand) {
-        // Joker has no real color (getColor() returns null), so the color sort below crashes on it.
-        // We filter it out here first - building a run with a joker is a separate ticket, this just avoids the crash.
+        // a joker has no real color getColor() returns null so the color sort below crashes on it
+        // we remove it here first to avoid the crash
+        // building a RUN with a joker is a separate ticket
         List<Tile> tiles = new ArrayList<>();
         for (Tile t : hand.getTiles()) {
             if (!t.isJoker()) tiles.add(t);
@@ -73,7 +69,6 @@ public class GreedySolver {
             for (int j = i + 1; j < tiles.size(); j++) {
                 Tile current = tiles.get(j);
                 if (current.getColor() != runColor) break;
-
                 if (current.getValue() == nextNeededValue) {
                     potentialRun.add(current);
                     nextNeededValue++;
@@ -92,7 +87,7 @@ public class GreedySolver {
     }
 
     /**
-     * Scans the hand to find and play valid Group sets (Same value, different colors).
+     * scans the hand to find and play valid GROUP sets with the same value with different colors
      */
     private boolean findAndPlayGroup(Board board, Hand hand) {
         List<Tile> tiles = new ArrayList<>(hand.getTiles());
@@ -124,17 +119,19 @@ public class GreedySolver {
         return false;
     }
 
-    // Step 2: smart pair theft (groups and runs need different handling)
+    /**
+     * step 2 smart pair theft GROUPS and RUNS need different handling
+     */
 
     /**
-     * Iterates over all board sets to find a tile that can be stolen to complete a pair in hand.
-     * Handles specific logic for Groups (any tile) and Runs (ends or valid middle split).
+     * goes over all board sets to find a tile we can steal to complete a pair in the hand
+     * a GROUP lets us take any tile and RUN lets us take an end or split a valid middle
      */
     private boolean playSmartPairTheft(Board board, Hand hand) {
         // Create a copy to allow modification of the board during iteration
         List<RummiSet> setsCopy = new ArrayList<>(board.getSets());
         for (RummiSet boardSet : setsCopy) {
-            // CASE A: GROUP (Any tile can be stolen if the remaining set is valid)
+            // for a GROUP any tile can be stolen if the set that stays is still valid
             if (boardSet.getSetType() == RummiSet.SetType.GROUP) {
                 if (boardSet.getSize() > 3) {
                     // Try to steal from ANY index
@@ -144,9 +141,9 @@ public class GreedySolver {
                 }
             }
 
-            // CASE B: RUN (Only Ends or specific Middle Split allowed)
+            // for a RUN only an end or a valid middle split can be stolen
             else {
-                // 1. Check Ends (Standard Steal) - Requires Size > 3
+                // steal from an end this needs a RUN bigger than 3
                 if (boardSet.getSize() > 3) {
                     // Try first tile
                     if (tryToMatchAndExecute(board, hand, boardSet, 0)) return true;
@@ -154,7 +151,7 @@ public class GreedySolver {
                     if (tryToMatchAndExecute(board, hand, boardSet, boardSet.getSize() - 1)) return true;
                 }
 
-                // 2. Check Middle Split - Requires Size >= 7
+                // split in the middle this needs a RUN of 7 or more
                 if (boardSet.getSize() >= 7) {
                     // Try splitting in the middle (leaving 3 tiles on each side)
                     for (int i = 3; i <= boardSet.getSize() - 4; i++) {
@@ -167,22 +164,20 @@ public class GreedySolver {
     }
 
     /**
-     * Core Logic: Checks if a specific tile on the board matches a pair in hand.
-     * If valid, it executes the move (either simple removal or complex split).
+     * checks if a tile on the board matches a pair in the hand
+     * if it does it makes the move by a simple removal or a split
      */
     private boolean tryToMatchAndExecute(Board board, Hand hand, RummiSet sourceSet, int tileIndex) {
         Tile stolenTile = sourceSet.getTiles().get(tileIndex);
         if (stolenTile.isJoker()) return false;
 
         List<Tile> handTiles = hand.getTiles();
-
         // Search for a matching pair in hand
         for (int i = 0; i < handTiles.size(); i++) {
             for (int j = i + 1; j < handTiles.size(); j++) {
                 Tile t1 = handTiles.get(i);
                 Tile t2 = handTiles.get(j);
-
-                // Optimization: Skip pairs that clearly don't match
+                // Skip pairs that clearly don't match
                 if (!isPotentiallyValidPair(t1, t2)) continue;
 
                 List<Tile> potentialNewSetTiles = new ArrayList<>();
@@ -190,7 +185,7 @@ public class GreedySolver {
                 potentialNewSetTiles.add(t1);
                 potentialNewSetTiles.add(t2);
 
-                // CRITICAL: Sort the tiles before validating to ensure correct order
+                // Sort the tiles before validating to ensure correct order
                 potentialNewSetTiles.sort((tile1, tile2) -> {
                     int colorCmp = tile1.getColor().compareTo(tile2.getColor());
                     if (colorCmp != 0) return colorCmp;
@@ -202,13 +197,13 @@ public class GreedySolver {
                     boolean isGroup = (sourceSet.getSetType() == RummiSet.SetType.GROUP);
                     boolean isEdge = (tileIndex == 0 || tileIndex == sourceSet.getSize() - 1);
 
-                    // If it's a Group, OR it's the edge of a Run -> Simple Removal
+                    // a GROUP or the edge of a RUN so just remove the tile
                     if (isGroup || isEdge) {
                         sourceSet.getTiles().remove(tileIndex);
                         board.addSet(newSet);
 
                     } else {
-                        // It must be a Run Middle Split: Break into Left, Right, and New
+                        // middle of a RUN so split it into left right and the new set
                         List<Tile> originalTiles = sourceSet.getTiles();
 
                         RummiSet leftSet = new RummiSet(new ArrayList<>(originalTiles.subList(0, tileIndex)));
@@ -233,10 +228,9 @@ public class GreedySolver {
         return false;
     }
 
-    // Step 3: add single tiles
 
     /**
-     * Scans the hand for single tiles that can be appended to existing sets on the board.
+     * step 3 scans the hand for single tiles that can be appended to existing sets on the board.
      */
     private boolean addSingleTileToExistingSet(Board board, Hand hand) {
         for (RummiSet set : board.getSets()) {
@@ -254,7 +248,8 @@ public class GreedySolver {
                 }
 
                 // Adding to a Run
-                if (set.getSetType() == RummiSet.SetType.RUN && tileMatchesPossibleAddition(set, tile)) {
+                if (set.getSetType() == RummiSet.SetType.RUN &&
+                        tileMatchesPossibleAddition(set, tile)) {
                     // Figure out which side it goes on by comparing to the real tiles already there
                     int lowestValue = Integer.MAX_VALUE;
                     for (Tile t : set.getTiles()) {
@@ -273,8 +268,9 @@ public class GreedySolver {
         return false;
     }
 
-    // helper functions
-
+    /**
+     *  helper functions
+     */
     // adds a new set to the board and removes the used tiles from the hand
     private void placeNewSet(Board board, Hand hand, RummiSet newSet, List<Tile> tilesToRemove) {
         board.addSet(newSet);
@@ -303,10 +299,10 @@ public class GreedySolver {
 
     // quick check if two tiles could even form a set together, so we skip obviously invalid pairs
     private boolean isPotentiallyValidPair(Tile t1, Tile t2) {
-        // Potential Group (Same value, different color)
+        // could be a GROUP same value and different color
         if (t1.getValue() == t2.getValue() && t1.getColor() != t2.getColor()) return true;
 
-        // Potential Run (Same color, difference of 1 or 2)
+        // could be a RUN same color and a gap of 1 or 2
         if (t1.getColor() == t2.getColor()) {
             int diff = Math.abs(t1.getValue() - t2.getValue());
             if (diff == 1 || diff == 2) return true;

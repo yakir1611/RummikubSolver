@@ -9,13 +9,22 @@
     android:orientation="vertical"
     android:padding="24dp">
 
-    <TextView
-        android:id="@+id/textGreeting"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
-        android:textAppearance="@style/TextAppearance.Rummi.Title"
-        tools:text="שלום, יקיר!" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/textGreeting"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textAppearance="@style/TextAppearance.Rummi.Title"
+            tools:text="שלום, יקיר!" />
+
+    </LinearLayout>
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/cardNewGame"
@@ -113,4 +122,20 @@
                 android:textAppearance="@style/TextAppearance.Rummi.Body" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/btnLogout"
+        android:layout_width="68dp"
+        android:layout_height="48dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="8dp"
+        android:text="@string/home_logout"
+        android:textAppearance="@style/TextAppearance.Rummi.Body"
+        android:textColor="@color/brand_primary" />
 </LinearLayout>

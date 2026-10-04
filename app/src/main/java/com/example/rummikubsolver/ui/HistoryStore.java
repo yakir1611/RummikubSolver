@@ -11,21 +11,18 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Repository for saved turn history - now backed by the Node/Mongo server
- * instead of SharedPreferences (the class comment used to promise exactly
- * this swap; this is that swap).
- *
- * The one thing that had to change beyond "call the server instead": SharedPreferences
- * reads are synchronous, a network call isn't. load()/save() used to return/act
- * immediately; now they take a callback and the screens (HistoryActivity,
- * SolutionActivity) show a loading state while waiting.
+ * Repository for saved turn history.
+ * This file acts as a mediator between AppApiClient and all the files that calls a history act,
+ * after getting a response from AppApiClient it converts the response to a response that is usable by the android screens.
  */
 public class HistoryStore {
 
     private static HistoryStore instance;
 
+    // The networking client used for every server call this store makes.
     private final AppApiClient api = new AppApiClient();
 
+    // Represents one saved turn (a single history entry) in the app's own UI-facing shape.
     public static class Entry {
         public final String id;
         public final String name;
@@ -53,7 +50,7 @@ public class HistoryStore {
             this.boardAfter = boardAfter;
             this.handRemaining = handRemaining;
         }
-
+        // Formats this entry's raw timestamp into a readable Hebrew-locale date/time string.
         public String formattedDate() {
             SimpleDateFormat f = new SimpleDateFormat("dd.MM.yyyy, HH:mm", new Locale("he"));
             return f.format(new Date(timestamp));
@@ -77,55 +74,54 @@ public class HistoryStore {
             return f.format(new Date(timestamp));
         }
     }
-
+    // Callback contract for loading a list of history entries.
     public interface LoadCallback {
         void onLoaded(List<Entry> entries);
         void onError(String message);
     }
-
+    // Callback contract for any save/rename operation that doesn't return data.
     public interface SaveCallback {
         void onSaved();
         void onError(String message);
     }
-
+    // Callback contract for loading a list of games.
     public interface GameLoadCallback {
         void onLoaded(List<Game> games);
         void onError(String message);
     }
 
+    // Callback contract for creating a new game.
     public interface GameCreateCallback {
         void onCreated(String gameId);
         void onError(String message);
     }
-
+    // Private constructor - forces all access through the singleton get() method below.
     private HistoryStore() {}
-
+    // Returns the single shared HistoryStore instance, creating it on first use.
     public static synchronized HistoryStore get() {
         if (instance == null) instance = new HistoryStore();
         return instance;
     }
 
     /**
-     * @param name defaults to the current date+time (see SolutionActivity) at
-     *             save time - renameable later via rename() below
+     * @param name defaults to the current date+time, renameable later via rename() below.
      * @param boardBefore/handBefore/boardAfter/handRemaining the same four
      *             sections the Solution screen rendered via BoardRenderer,
      *             saved verbatim in tile-code format (see TileCodeFormat)
      */
+    // Saves a new history entry (one solved turn) to the server.
     public void save(String name, int tilesPlayed,
                       @Nullable List<List<String>> boardBefore, @Nullable List<String> handBefore,
                       @Nullable List<List<String>> boardAfter, @Nullable List<String> handRemaining,
                       @Nullable String gameId,
                       SaveCallback callback) {
+        // Grab the current user's auth token from the shared session.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
-            // guest mode, or somehow got here logged out - nothing to attach
-            // this entry to server-side, so fail clearly instead of silently
-            // dropping it (which is what the old SharedPreferences version
-            // would never have done - it always had *somewhere* local to write)
             callback.onError("יש להתחבר כדי לשמור היסטוריה");
             return;
         }
+        // Delegate the actual HTTP call to AppApiClient, passing the token and all entry data.
         api.saveHistoryEntry(token, name, tilesPlayed, boardBefore, handBefore, boardAfter, handRemaining, gameId,
                 new AppApiClient.HistorySaveCallback() {
                     @Override
@@ -135,16 +131,15 @@ public class HistoryStore {
                     public void onFailure(String message) { callback.onError(message); }
                 });
     }
-
+    // Loads the user's full history (all entries, across all games).
     public void load(LoadCallback callback) {
+        // Grab the current user's auth token.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
-            // a guest never saved anything server-side either - empty list,
-            // not an error, so HistoryActivity just shows "no history" same
-            // as a logged-in user with a genuinely empty history
             callback.onLoaded(new ArrayList<>());
             return;
         }
+        // Ask AppApiClient to fetch the full history list from the server.
         api.getHistory(token, new AppApiClient.HistoryListCallback() {
             @Override
             public void onSuccess(List<AppApiClient.HistoryEntryDto> dtos) {
@@ -154,7 +149,7 @@ public class HistoryStore {
                             d.boardBefore, d.handBefore, d.boardAfter, d.handRemaining));
                 }
                 // server already sorts newest-first (see historyController.js),
-                // no re-sort needed here like the old SharedPreferences version had to do
+                // so no re-sort needed here.
                 callback.onLoaded(entries);
             }
 
@@ -164,12 +159,15 @@ public class HistoryStore {
     }
 
     /** Renames an already-saved entry. Server enforces that it belongs to this user. */
+    // Renames a single history entry by its id.
     public void rename(String entryId, String newName, SaveCallback callback) {
+        // Grab the current user's auth token.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
             callback.onError("יש להתחבר כדי לשנות שם");
             return;
         }
+        // Delegate the rename call to AppApiClient.
         api.renameHistoryEntry(token, entryId, newName, new AppApiClient.HistorySaveCallback() {
             @Override
             public void onSuccess() { callback.onSaved(); }
@@ -179,13 +177,15 @@ public class HistoryStore {
         });
     }
 
-    /** Creates a new game on the server. See TurnSession.startNewGame(). */
+    /** Creates a new game on the server. */
     public void createGame(String name, GameCreateCallback callback) {
+        // Grab the current user's auth token.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
             callback.onError("יש להתחבר כדי להתחיל משחק חדש");
             return;
         }
+        // Delegate the create-game call to AppApiClient.
         api.createGame(token, name, new AppApiClient.GameCreateCallback() {
             @Override
             public void onSuccess(AppApiClient.GameDto game) { callback.onCreated(game.id); }
@@ -194,13 +194,15 @@ public class HistoryStore {
             public void onFailure(String message) { callback.onError(message); }
         });
     }
-
+    // Loads the full list of the user's saved games.
     public void loadGames(GameLoadCallback callback) {
+        // Grab the current user's auth token.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
             callback.onLoaded(new ArrayList<>());
             return;
         }
+        // Ask AppApiClient to fetch the games list from the server.
         api.getGames(token, new AppApiClient.GameListCallback() {
             @Override
             public void onSuccess(List<AppApiClient.GameDto> dtos) {
@@ -218,11 +220,13 @@ public class HistoryStore {
 
     /** Renames an already-saved game. Server enforces that it belongs to this user. */
     public void renameGame(String gameId, String newName, SaveCallback callback) {
+        // Grab the current user's auth token.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
             callback.onError("יש להתחבר כדי לשנות שם");
             return;
         }
+        // Delegate the rename call to AppApiClient.
         api.renameGame(token, gameId, newName, new AppApiClient.HistorySaveCallback() {
             @Override
             public void onSuccess() { callback.onSaved(); }
@@ -233,12 +237,15 @@ public class HistoryStore {
     }
 
     /** The turns saved inside one game. */
+    // Loads only the history entries that belong to one specific game.
     public void loadGameHistory(String gameId, LoadCallback callback) {
+        // Grab the current user's auth token.
         String token = TurnSession.get().getAuthToken();
         if (token == null) {
             callback.onLoaded(new ArrayList<>());
             return;
         }
+        // Ask AppApiClient to fetch just this game's history entries.
         api.getGameHistory(token, gameId, new AppApiClient.HistoryListCallback() {
             @Override
             public void onSuccess(List<AppApiClient.HistoryEntryDto> dtos) {

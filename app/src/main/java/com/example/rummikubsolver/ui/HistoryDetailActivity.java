@@ -20,17 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Shows one saved history entry in full: the board photo taken that turn (if
- * this is an old entry that still has one) and the same four tile-rendered
+ * Shows one saved history entry in full: the board photo taken that turn (if exist) and the same four tile-rendered
  * sections SolutionActivity showed when it was saved - board/hand,
  * before/after - reconstructed from the tile codes the server stored via
  * BoardRenderer, the exact same helper SolutionActivity itself uses. Not
  * re-solved, just redrawn - this screen is display-only.
- *
- * Data comes through TurnSession's transient history* fields, not Intent
- * extras - same reasoning as boardPhoto/handPhoto: a full-res photo plus a
- * whole board's worth of tiles can exceed Intent's ~1MB limit. Only the small
- * bits (game number, date) travel as extras.
  */
 public class HistoryDetailActivity extends AppCompatActivity {
 
@@ -41,7 +35,7 @@ public class HistoryDetailActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_history_detail);
-
+        // Bind every view field to its id in the layout.
         TextView textGameTitle = findViewById(R.id.textGameTitle);
         TextView textGameDate = findViewById(R.id.textGameDate);
         TextView labelPhoto = findViewById(R.id.labelPhoto);
@@ -55,23 +49,29 @@ public class HistoryDetailActivity extends AppCompatActivity {
         String date = getIntent().getStringExtra(EXTRA_DATE);
         textGameTitle.setText(getString(R.string.history_game_title, gameNumber));
         textGameDate.setText(date);
-
+        // Handle the optional legacy board photo (decode + display, or hide if absent).
         bindBoardPhoto(TurnSession.get().getHistoryBoardImage(), labelPhoto, imageBoardPhoto);
-
+        // Rebuild and render the board state before the move.
         bindBoardSection(TurnSession.get().getHistoryBoardBefore(), boardBeforeContainer);
+        // Rebuild and render the hand state before the move.
         bindHandSection(TurnSession.get().getHistoryHandBefore(), handBeforeContainer);
+        // Rebuild and render the board state after the move.
         bindBoardSection(TurnSession.get().getHistoryBoardAfter(), boardAfterContainer);
+        // Rebuild and render the hand tiles remaining after the move.
         bindHandSection(TurnSession.get().getHistoryHandRemaining(), handRemainingContainer);
     }
 
     /** Only present on entries saved before the photo was dropped from history. */
+    // Decodes and shows the legacy board photo, or hides the photo section entirely if there isn't one.
     private void bindBoardPhoto(String boardImage, TextView label, ImageView image) {
         if (boardImage == null) {
             label.setVisibility(View.GONE);
             image.setVisibility(View.GONE);
             return;
         }
+        // Decode the base64 text back into the original raw JPEG bytes.
         byte[] bytes = Base64.decode(boardImage, Base64.NO_WRAP);
+        // Decode those raw bytes into an actual displayable Bitmap.
         Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
         if (bitmap == null) {
             label.setVisibility(View.GONE);
@@ -81,35 +81,46 @@ public class HistoryDetailActivity extends AppCompatActivity {
         image.setImageBitmap(bitmap);
     }
 
-    /** Reconstructs RummiSets from tile codes and renders them via BoardRenderer - same helper, same look as SolutionActivity. */
+    /** Reconstructs RummiSets from tile codes and renders them via BoardRenderer. */
     private void bindBoardSection(List<List<String>> setCodes, LinearLayout container) {
         if (setCodes == null) {
             BoardRenderer.drawSets(this, container, null);
             return;
         }
         int[] nextId = {0};
+        // Will hold one RummiSet per saved set of codes.
         List<RummiSet> sets = new ArrayList<>(setCodes.size());
+        // Walk through every saved set (list of tile codes).
         for (List<String> codes : setCodes) {
+            // Will hold the reconstructed Tile objects for this one set.
             List<Tile> tiles = new ArrayList<>(codes.size());
+            // Walk through every tile code inside this set.
             for (String code : codes) {
+                // Parse the code (e.g. "R7") into a real Tile, assigning it the next free id.
                 tiles.add(TileCodeFormat.fromCode(code, nextId[0]++));
             }
+            // Wrap the finished tile list as one RummiSet and add it to the result.
             sets.add(new RummiSet(tiles));
         }
+        // Draw the fully reconstructed sets using the same renderer SolutionActivity uses.
         BoardRenderer.drawSets(this, container, sets);
     }
 
-    /** Reconstructs Tiles from tile codes and renders them via BoardRenderer - same helper, same look as SolutionActivity. */
+    /** Reconstructs Tiles from tile codes and renders them via BoardRenderer. */
     private void bindHandSection(List<String> tileCodes, LinearLayout container) {
         if (tileCodes == null) {
             BoardRenderer.drawHand(this, container, null);
             return;
         }
         int[] nextId = {0};
+        // Will hold the reconstructed Tile objects for this hand.
         List<Tile> tiles = new ArrayList<>(tileCodes.size());
+        // Walk through every saved tile code.
         for (String code : tileCodes) {
+            // Parse the code into a real Tile, assigning it the next free id.
             tiles.add(TileCodeFormat.fromCode(code, nextId[0]++));
         }
+        // Draw the reconstructed flat tile list using the same renderer as a live hand.
         BoardRenderer.drawHand(this, container, tiles);
     }
 }

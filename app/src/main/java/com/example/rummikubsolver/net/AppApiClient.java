@@ -24,11 +24,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Talks to our own Node/Express server (auth + history) - NOT Roboflow,
- * that's RoboflowClient's job. Same shape on purpose: OkHttp, async
- * enqueue(), callback hops back to the main thread. Two separate classes
- * because they talk to two unrelated services with unrelated request/response
- * formats; merging them would just make one class that knows about both.
+ * Talks to our own Node/Express server (auth + history).
  */
 public class AppApiClient {
 
@@ -37,9 +33,48 @@ public class AppApiClient {
     private final OkHttpClient client = new OkHttpClient();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // BuildConfig.APP_SERVER_URL always ends with "/" (see build.gradle.kts
-    // default) - so endpoint paths below are appended without a leading "/"
-    private final String baseUrl = BuildConfig.APP_SERVER_URL;
+    // Whichever base URL (USB or WiFi) last succeeded - tried first on the next call.
+    private static volatile String preferredBaseUrl = BuildConfig.APP_SERVER_URL_USB;
+
+    // Returns the other candidate base URL, so a failed USB attempt falls back to WiFi (and vice versa).
+    private String otherBaseUrl(String current) {
+        return current.equals(BuildConfig.APP_SERVER_URL_USB)
+                ? BuildConfig.APP_SERVER_URL_WIFI
+                : BuildConfig.APP_SERVER_URL_USB;
+    }
+
+    //Builds a Request for a given base URL - lets one call site be retried against a different base URL.
+    private interface RequestFactory {
+        Request build(String baseUrl);
+    }
+
+    // Sends a request via the last known-good base URL, retrying once against the other URL on failure.
+    private void executeWithFallback(RequestFactory factory, Callback finalCallback) {
+        attempt(factory, finalCallback, preferredBaseUrl, true);
+    }
+
+    /**
+     * Tries one base URL. On failure, retries once against the other base URL if canFallback
+     * is true; otherwise reports the failure. On success, remembers this URL as preferred.
+     */
+    private void attempt(RequestFactory factory, Callback finalCallback, String tryUrl, boolean canFallback) {
+        client.newCall(factory.build(tryUrl)).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                if (canFallback) {
+                    attempt(factory, finalCallback, otherBaseUrl(tryUrl), false);
+                } else {
+                    finalCallback.onFailure(call, e);
+                }
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                preferredBaseUrl = tryUrl;
+                finalCallback.onResponse(call, response);
+            }
+        });
+    }
 
     /** What a successful register/login call hands back. */
     public static class AuthResult {
@@ -47,6 +82,7 @@ public class AppApiClient {
         public final String userId;
         public final String username;
 
+        // Builds an AuthResult straight from the server's {token, userId, username} response.
         AuthResult(String token, String userId, String username) {
             this.token = token;
             this.userId = userId;
@@ -55,11 +91,7 @@ public class AppApiClient {
     }
 
     /**
-     * One saved turn, as the server returns it. Mirrors HistoryStore.Entry.
-     * boardBefore/boardAfter are each an outer array of sets, each set an
-     * array of tile codes; handBefore/handRemaining are flat tile-code
-     * arrays - the exact same shapes SolutionActivity builds to feed
-     * BoardRenderer, saved verbatim (see TileCodeFormat).
+     * One saved turn, as the server returns it.
      */
     public static class HistoryEntryDto {
         public final String id;
@@ -72,6 +104,7 @@ public class AppApiClient {
         @Nullable public final List<List<String>> boardAfter;
         @Nullable public final List<String> handRemaining;
 
+        // Builds a HistoryEntryDto from the fields already parsed out of the server's JSON.
         HistoryEntryDto(String id, String name, long timestamp, int tilesPlayed, @Nullable String boardImage,
                         @Nullable List<List<String>> boardBefore, @Nullable List<String> handBefore,
                         @Nullable List<List<String>> boardAfter, @Nullable List<String> handRemaining) {
@@ -93,6 +126,7 @@ public class AppApiClient {
         public final String name;
         public final long timestamp;
 
+        // Builds a GameDto from the fields already parsed out of the server's JSON.
         GameDto(String id, String name, long timestamp) {
             this.id = id;
             this.name = name;
@@ -100,34 +134,38 @@ public class AppApiClient {
         }
     }
 
+    /** Callback for register()/login() results. */
     public interface AuthCallback {
         void onSuccess(AuthResult result);
-        /** message is already a user-facing Hebrew string - the server sends
-         *  one (e.g. "username already taken"), we fall back to a generic one
-         *  only for network-level failures the server never got to answer. */
+        // message is sent by the server
         void onFailure(String message);
     }
 
+    // Callback for calls that only confirm success/failure, with no data to return (save/rename).
     public interface HistorySaveCallback {
         void onSuccess();
         void onFailure(String message);
     }
 
+    // Callback for calls that return a list of saved history entries.
     public interface HistoryListCallback {
         void onSuccess(List<HistoryEntryDto> entries);
         void onFailure(String message);
     }
 
+    // Callback for createGame()'s result.
     public interface GameCreateCallback {
         void onSuccess(GameDto game);
         void onFailure(String message);
     }
 
+    // Callback for calls that return a list of games.
     public interface GameListCallback {
         void onSuccess(List<GameDto> games);
         void onFailure(String message);
     }
 
+    /** POST /api/auth/register { username, password } -> a fresh auth token, logging the user in right away. */
     public void register(String username, String password, AuthCallback callback) {
         JSONObject body = new JSONObject();
         try {
@@ -150,6 +188,7 @@ public class AppApiClient {
         });
     }
 
+    /** POST /api/auth/login { username, password } -> a fresh auth token if the credentials match. */
     public void login(String username, String password, AuthCallback callback) {
         JSONObject body = new JSONObject();
         try {
@@ -172,6 +211,7 @@ public class AppApiClient {
         });
     }
 
+    /** Shared by register()/login() - parses {token, userId, username} and delivers it on the main thread. */
     private void deliverAuthSuccess(JSONObject json, AuthCallback callback) {
         try {
             AuthResult result = new AuthResult(
@@ -304,13 +344,11 @@ public class AppApiClient {
 
     /** GET /api/games -> this user's games, newest first. */
     public void getGames(String token, GameListCallback callback) {
-        Request request = new Request.Builder()
-                .url(baseUrl + "api/games")
+        executeWithFallback(base -> new Request.Builder()
+                .url(base + "api/games")
                 .header("Authorization", "Bearer " + token)
                 .get()
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+                .build(), new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 mainHandler.post(() -> callback.onFailure(networkErrorMessage(e)));
@@ -339,13 +377,11 @@ public class AppApiClient {
 
     /** GET /api/games/:id/history -> the turns saved inside this game, newest first. */
     public void getGameHistory(String token, String gameId, HistoryListCallback callback) {
-        Request request = new Request.Builder()
-                .url(baseUrl + "api/games/" + gameId + "/history")
+        executeWithFallback(base -> new Request.Builder()
+                .url(base + "api/games/" + gameId + "/history")
                 .header("Authorization", "Bearer " + token)
                 .get()
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+                .build(), new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 mainHandler.post(() -> callback.onFailure(networkErrorMessage(e)));
@@ -376,14 +412,13 @@ public class AppApiClient {
         return new GameDto(o.getString("_id"), name, ts);
     }
 
+    /** GET /api/history -> this user's saved turns, newest first. */
     public void getHistory(String token, HistoryListCallback callback) {
-        Request request = new Request.Builder()
-                .url(baseUrl + "api/history")
+        executeWithFallback(base -> new Request.Builder()
+                .url(base + "api/history")
                 .header("Authorization", "Bearer " + token)
                 .get()
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+                .build(), new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 mainHandler.post(() -> callback.onFailure(networkErrorMessage(e)));
@@ -414,9 +449,6 @@ public class AppApiClient {
         List<HistoryEntryDto> entries = new ArrayList<>();
         for (int i = 0; i < arr.length(); i++) {
             JSONObject o = arr.getJSONObject(i);
-            // Mongo stores timestamp as an ISO date string; Date.parse via
-            // new Date().getTime() equivalent here is manual since org.json
-            // has no date parsing - java.util handles ISO-8601 fine
             long ts = java.time.Instant.parse(o.getString("timestamp")).toEpochMilli();
             String id = o.getString("_id");
             String name = o.has("name") && !o.isNull("name") ? o.getString("name") : null;
@@ -434,8 +466,6 @@ public class AppApiClient {
         }
         return entries;
     }
-
-    // ---- shared plumbing ----
 
     /** Puts an outer array of sets (each an array of tile codes) under key, if non-null. */
     private void putSetLists(JSONObject body, String key, @Nullable List<List<String>> setLists) throws JSONException {
@@ -489,16 +519,18 @@ public class AppApiClient {
         abstract void onError(String message);
     }
 
+    /** Shared POST helper: builds the request via executeWithFallback(), then
+     *  parses the JSON response and reports success/failure through callback. */
     private void postJson(String path, JSONObject body, @Nullable String token, SimpleJsonCallback callback) {
-        Request.Builder builder = new Request.Builder()
-                .url(baseUrl + path)
-                .post(RequestBody.create(body.toString(), JSON));
-        if (token != null) {
-            builder.header("Authorization", "Bearer " + token);
-        }
-        Request request = builder.build();
-
-        client.newCall(request).enqueue(new Callback() {
+        executeWithFallback(base -> {
+            Request.Builder builder = new Request.Builder()
+                    .url(base + path)
+                    .post(RequestBody.create(body.toString(), JSON));
+            if (token != null) {
+                builder.header("Authorization", "Bearer " + token);
+            }
+            return builder.build();
+        }, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 callback.onError(networkErrorMessage(e));
@@ -522,15 +554,15 @@ public class AppApiClient {
 
     /** Same shape as postJson(), but PATCH - used by renameHistoryEntry(). */
     private void patchJson(String path, JSONObject body, @Nullable String token, SimpleJsonCallback callback) {
-        Request.Builder builder = new Request.Builder()
-                .url(baseUrl + path)
-                .patch(RequestBody.create(body.toString(), JSON));
-        if (token != null) {
-            builder.header("Authorization", "Bearer " + token);
-        }
-        Request request = builder.build();
-
-        client.newCall(request).enqueue(new Callback() {
+        executeWithFallback(base -> {
+            Request.Builder builder = new Request.Builder()
+                    .url(base + path)
+                    .patch(RequestBody.create(body.toString(), JSON));
+            if (token != null) {
+                builder.header("Authorization", "Bearer " + token);
+            }
+            return builder.build();
+        }, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 callback.onError(networkErrorMessage(e));
@@ -565,10 +597,8 @@ public class AppApiClient {
         return "השרת החזיר שגיאה (" + statusCode + ")";
     }
 
+    /** User-facing message for OkHttp-level failures (couldn't connect at all). */
     private String networkErrorMessage(IOException e) {
-        // most common case for students testing locally: forgot to start the
-        // server, or used the wrong APP_SERVER_URL - worth a clearer hint
-        // than OkHttp's raw "Failed to connect" message
         return "לא ניתן להתחבר לשרת. ודא שהשרת פועל ושכתובת ה-IP נכונה";
     }
 }

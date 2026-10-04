@@ -7,11 +7,11 @@ import java.util.Objects;
 public class RummiSet {
     private final List<Tile> tiles;
 
-    // Default constructor (empty set)
+    // Default constructor
     public RummiSet() {
         this.tiles = new ArrayList<>();
     }
-    // Safe constructor - handles null input
+    // Safe constructor
     public RummiSet(List<Tile> initialTiles) {
         if (initialTiles != null) {
             this.tiles = new ArrayList<>(initialTiles);
@@ -66,7 +66,7 @@ public class RummiSet {
         return isRun(sortedTiles);
     }
 
-    // Check for "Group": Same value, different colors
+    // Check for "Group": Same value and different colors
     private boolean isGroup(List<Tile> checkList) {
         if (tiles.size() > 4) {
             return false;
@@ -91,13 +91,13 @@ public class RummiSet {
         return true;
     }
 
-    // Check for "Run": Same color, consecutive numbers (Gap Logic)
+    // Check for "Run": Same color and consecutive numbers
     private boolean isRun(List<Tile> checkList) {
         List<Tile> numbersOnly = new ArrayList<>();
         int jokerCount = 0;
         Tile.Color targetColor = null;
 
-        // 1. Separate jokers and check color consistency
+        // Separate jokers and check color consistency
         for (Tile tile : checkList) {
             if (tile.isJoker()) {
                 jokerCount++;
@@ -111,7 +111,7 @@ public class RummiSet {
             }
         }
 
-        // Sort the numbers (e.g., 3, 5, 6)
+        // Sort the numbers
         numbersOnly.sort(Comparator.comparingInt(Tile::getValue));
 
         // Start checking from the first real number we have
@@ -119,7 +119,7 @@ public class RummiSet {
 
         for (Tile tile : numbersOnly) {
             int currentValue = tile.getValue();
-            // Loop: Fill gaps with jokers
+            // for each empty spot we put a joker
             while (expectedValue < currentValue) {
                 if (jokerCount > 0) {
                     jokerCount--;    // Use a joker
@@ -136,10 +136,9 @@ public class RummiSet {
             }
         }
 
-        // Leftover jokers didn't fill an internal gap - they can still be
-        // valid if there's room to extend the run at either end (e.g.
-        // [5,6,7]+Joker can become [4,5,6,7] or [5,6,7,8]), but not if the
-        // run is already 1..13 with nowhere left to put them.
+        // the joker did not fill a hole inside the run
+        // it is still ok if the run can grow at the start or the end
+        // it is not ok if the run already goes from 1 to 13
         if (jokerCount > 0) {
             int lowestValue = numbersOnly.get(0).getValue();
             int highestValue = numbersOnly.get(numbersOnly.size() - 1).getValue();
@@ -167,7 +166,7 @@ public class RummiSet {
         return SetType.RUN;
     }
 
-    // For Groups: returns which colors are missing (needed to complete the group)
+    // for a group this returns the colors that are missing
     public List<Tile.Color> getGroupMissingColors() {
         if (getSetType() != SetType.GROUP) return new ArrayList<>();
 
@@ -187,7 +186,7 @@ public class RummiSet {
         return missing;
     }
 
-    // One tile (value + color) that could legally be tacked onto a Run, at either end.
+    // one tile with a value and a color that can be added to RUN at the start or the end
     public static class PossibleAddition {
         private final int value;
         private final Tile.Color color;
@@ -207,24 +206,11 @@ public class RummiSet {
             PossibleAddition that = (PossibleAddition) o;
             return value == that.value && color == that.color;
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(value, color);
-        }
-
-        @Override
-        public String toString() {
-            return value + " " + color;
-        }
     }
 
-    // For Runs: every tile that could legally be added at either end.
-    // A free joker (one not stuck plugging an internal gap) can end up on
-    // either side, and each possible split gives a different pair of values.
-    // So just loop over every legal split and grab them all.
-    // Example: [5, 6, Joker] -> joker's free, splits are 0-below/1-below,
-    // giving {4,7} and {3,8} -> together {3,4,7,8}.
+    // for a RUN this gives every tile that can be added at an end
+    // a free joker can go left or right so each side gives a different pair
+    // example 5 6 joker gives 4 and 7 or 3 and 8
     public List<PossibleAddition> getPossibleRunAdditions() {
         List<PossibleAddition> result = new ArrayList<>();
         if (getSetType() != SetType.RUN) return result;
@@ -242,8 +228,8 @@ public class RummiSet {
             }
         }
 
-        // same gap walk as isRun(), just to count how many jokers are actually
-        // stuck plugging holes between real numbers
+        // same gap walk as isRun() but here we only
+        // count how many jokers fill holes between numbers
         int expected = numbersOnly.get(0).getValue();
         int jokersUsedForGaps = 0;
         for (Tile t : numbersOnly) {
@@ -262,15 +248,23 @@ public class RummiSet {
         int spaceBelow = lowestReal - 1;
         int spaceAbove = 13 - highestReal;
 
-        // try every way to split the spare jokers between the two ends.
-        // still has to stay inside 1..13 on both sides, same overall bound
-        // isRun() already checks
+        /*
+         * try every way to split the spare jokers between the two ends
+         * both sides must stay inside 1 to 13
+         * isRun() already checks this bound
+         */
+
+        // how many jokers we must put below
+        // it is 0 unless there is no room above like when the top is 13
         int minBelow = Math.max(0, spareJokers - spaceAbove);
+
+        // the most jokers we can put below not more than we have or the room below
         int maxBelow = Math.min(spareJokers, spaceBelow);
+
         for (int jokersBelow = minBelow; jokersBelow <= maxBelow; jokersBelow++) {
-            int jokersAbove = spareJokers - jokersBelow;
-            int logicalStart = lowestReal - jokersBelow;
-            int logicalEnd = highestReal + jokersAbove;
+            int jokersAbove = spareJokers - jokersBelow;   // the rest go above
+            int logicalStart = lowestReal - jokersBelow;   // new low end
+            int logicalEnd = highestReal + jokersAbove;    // new high end
 
             if (logicalStart - 1 >= 1) {
                 addIfNew(result, new PossibleAddition(logicalStart - 1, runColor));
@@ -282,11 +276,11 @@ public class RummiSet {
         return result;
     }
 
-    private void addIfNew(List<PossibleAddition> list, PossibleAddition candidate) {
-        if (!list.contains(candidate)) list.add(candidate);
+    private void addIfNew(List<PossibleAddition> list, PossibleAddition t) {
+        if (!list.contains(t)) list.add(t);
     }
 
-    // Helper to get the run's color (returns null if it's a group or invalid)
+    // helper to get the color of the RUN it returns null if it is a GROUP or not valid
     public Tile.Color getRunColor() {
         if (getSetType() != SetType.RUN) return null;
         for (Tile t : tiles) {

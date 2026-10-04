@@ -23,9 +23,13 @@ import com.example.rummikubsolver.vision.DetectedTile;
  *  - normal
  *  - selected (user tapped it)
  *  - warning (belongs to a set that failed validation)
+ *
+ *  Every time a tile is needed  to be painted it uses this class
+ *  (when the tile is definite we use bind(TILE tile), in solutionActivity and HistoryDetailActivity)
+ *  and when the tile need to be checked like in ReviewActivity we use bind(DetectedTile dt).
  */
 public class TileView extends AppCompatTextView {
-
+    // Three possible visual states this view can render.
     public enum State { NORMAL, SELECTED, WARNING }
 
     private static final int TILE_W_DP = 40;
@@ -39,7 +43,7 @@ public class TileView extends AppCompatTextView {
         super(context, attrs);
         init();
     }
-
+    // One-time visual setup applied to every TileView instance.
     private void init() {
         setGravity(Gravity.CENTER);
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
@@ -52,16 +56,20 @@ public class TileView extends AppCompatTextView {
         lp.width = dp(TILE_W_DP);
         lp.height = dp(TILE_H_DP);
         lp.setMargins(m, m, m, m);
+        // Apply the layout params to this view.
         setLayoutParams(lp);
     }
 
     /** Shows a confirmed tile from the game model. */
     public void bind(Tile tile) {
+        // Jokers are drawn as a star instead of a number.
         if (tile.isJoker()) {
             setText("★");
             setTextColor(ContextCompat.getColor(getContext(), R.color.brand_accent));
         } else {
+            // Regular tile: show its numeric value as text.
             setText(String.valueOf(tile.getValue()));
+            // Color the number according to the tile's Rummikub color.
             setTextColor(colorFor(tile.getColor()));
         }
     }
@@ -82,7 +90,7 @@ public class TileView extends AppCompatTextView {
                 ? ContextCompat.getColor(getContext(), R.color.text_secondary)
                 : colorFor(dt.getColor()));
     }
-
+    // Switches the tile's background drawable based on its current display state.
     public void setState(State state) {
         switch (state) {
             case SELECTED:
@@ -95,7 +103,7 @@ public class TileView extends AppCompatTextView {
                 setBackgroundResource(R.drawable.bg_tile);
         }
     }
-
+    // Maps a Rummikub tile color to its actual Android color resource.
     private int colorFor(Tile.Color c) {
         if (c == null) return Color.DKGRAY;
         switch (c) {
@@ -106,7 +114,7 @@ public class TileView extends AppCompatTextView {
             default:     return Color.DKGRAY;
         }
     }
-
+    // Converts a dp value to actual pixels based on this device's screen density.
     private int dp(int value) {
         float d = getResources().getDisplayMetrics().density;
         return Math.round(value * d);

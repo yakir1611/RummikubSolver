@@ -20,6 +20,7 @@
 
     <!-- home -->
     <string name="home_greeting">שלום, %1$s</string>
+    <string name="home_logout">התנתק</string>
     <string name="home_new_game">משחק חדש</string>
     <string name="home_new_game_sub">צלם את הלוח ואת היד שלך</string>
     <string name="home_history">היסטוריה</string>
@@ -85,6 +86,7 @@
     <string name="solution_new_turn">תור חדש</string>
     <string name="solution_turn_default_name">תור מספר %1$d</string>
     <string name="solution_go_home">למסך הבית</string>
+    <string name="solution_hand_emptied">יפה מאוד! הצלחת להוריד את כל האריחים</string>
 
     <!-- history -->
     <string name="history_title">היסטוריית משחקים</string>
